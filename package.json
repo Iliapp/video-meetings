@@ -2,13 +2,16 @@
   "name": "video-meetings",
   "version": "1.0.0",
   "private": true,
-  "description": "",
+  "description": "Video meetings monorepo: Next.js web app and NestJS API",
   "scripts": {
+    "dev": "pnpm -r --parallel dev",
     "dev:web": "pnpm --filter web dev",
-    "dev:api": "pnpm --filter api start:dev",
+    "dev:api": "pnpm --filter api dev",
     "build": "pnpm -r build",
     "lint": "pnpm -r lint",
-    "format": "pnpm --filter api format"
+    "test": "pnpm -r test",
+    "format": "prettier --write .",
+    "format:check": "prettier --check ."
   },
   "keywords": [],
   "author": "",
@@ -21,5 +24,7 @@
     }
   },
   "packageManager": "pnpm@12.8.1",
-  "type": "module"
+  "devDependencies": {
+    "prettier": "^3.9.9"
+  }
 }

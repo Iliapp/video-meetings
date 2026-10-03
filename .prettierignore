@@ -1,0 +1,12 @@
+node_modules
+dist
+.next
+out
+build
+coverage
+pnpm-lock.yaml
+next-env.d.ts
+*.tsbuildinfo
+# Vendored agent skills (managed by skills-lock.json)
+.agents/skills
+.claude/skills
