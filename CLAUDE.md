@@ -19,6 +19,12 @@ Each app has its own `CLAUDE.md` with app-specific notes; read it before working
 | `pnpm lint`                         | Lint all apps                                         |
 | `pnpm test`                         | Run tests in all apps                                 |
 | `pnpm format` / `pnpm format:check` | Prettier write / check for the whole repo             |
+| `pnpm db:up` / `pnpm db:down`       | Start (and wait until healthy) / stop local Postgres  |
+| `pnpm db:logs`                      | Follow Postgres logs                                  |
+
+## Local database
+
+`docker-compose.yml` at the root runs PostgreSQL 17 (`postgres:17-alpine`, container `video-meetings-postgres`) on `localhost:5432`, data in the `postgres-data` volume. Defaults: user `postgres`, password `postgres`, database `video_meetings`; override with `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_DB`, `POSTGRES_PORT` (env or a root `.env`). Connection string: `postgresql://postgres:postgres@localhost:5432/video_meetings`. Requires Docker Desktop running. `docker compose down -v` wipes the data.
 
 ## Conventions
 

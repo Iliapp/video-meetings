@@ -11,7 +11,10 @@
     "lint": "pnpm -r lint",
     "test": "pnpm -r test",
     "format": "prettier --write .",
-    "format:check": "prettier --check ."
+    "format:check": "prettier --check .",
+    "db:up": "docker compose up -d --wait postgres",
+    "db:down": "docker compose down",
+    "db:logs": "docker compose logs -f postgres"
   },
   "keywords": [],
   "author": "",
