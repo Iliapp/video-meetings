@@ -10,3 +10,4 @@ next-env.d.ts
 # Vendored agent skills (managed by skills-lock.json)
 .agents/skills
 .claude/skills
+apps/api/src/generated
