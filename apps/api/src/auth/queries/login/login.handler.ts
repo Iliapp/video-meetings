@@ -16,8 +16,13 @@ export class LoginHandler implements IQueryHandler<LoginQuery> {
 
   async execute({ email, password }: LoginQuery): Promise<AuthResponseDto> {
     const user = await this.users.findByEmail(email);
-    // Same error for unknown email and wrong password, so accounts can't be enumerated.
-    if (!user || !(await this.passwords.verify(password, user.passwordHash))) {
+    // Hash even when the user is missing, and fail with the same error, so
+    // neither the response nor its timing reveals which emails are registered.
+    const valid = await this.passwords.verify(
+      password,
+      user?.passwordHash ?? (await this.passwords.dummyHash()),
+    );
+    if (!user || !valid) {
       throw new UnauthorizedException('Invalid email or password');
     }
     return this.tokens.issue(user);
