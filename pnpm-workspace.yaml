@@ -2,4 +2,6 @@ packages:
   - 'apps/*'
 allowBuilds:
   '@parcel/watcher': true
+  '@prisma/engines': true
+  prisma: true
   unrs-resolver: true

@@ -6,7 +6,7 @@ Each app has its own `CLAUDE.md` with app-specific notes; read it before working
 ## Tooling
 
 - Package manager is **pnpm only** (`pnpm@12.8.1`, enforced via `devEngines`). `npm`/`npx` fail with `EBADDEVENGINES`; use `pnpm` / `pnpm dlx`.
-- Workspace: `pnpm-workspace.yaml` includes `apps/*`. Add a dependency to one app with `pnpm --filter <web|api> add <pkg>`.
+- Workspace: `pnpm-workspace.yaml` includes `apps/*`; dependency install scripts run only for packages listed in its `allowBuilds`. Add a dependency to one app with `pnpm --filter <web|api> add <pkg>`.
 - Formatting: Prettier at the root (`.prettierrc`: single quotes, trailing commas). Both apps' ESLint configs include `eslint-config-prettier`. A Claude Code `PostToolUse` hook (`.claude/settings.json` → `.claude/hooks/format.mjs`) runs Prettier on every file Claude writes or edits.
 
 ## Commands (from repo root)
@@ -24,7 +24,7 @@ Each app has its own `CLAUDE.md` with app-specific notes; read it before working
 
 ## Local database
 
-`docker-compose.yml` at the root runs PostgreSQL 17 (`postgres:17-alpine`, container `video-meetings-postgres`) on `localhost:5432`, data in the `postgres-data` volume. Defaults: user `postgres`, password `postgres`, database `video_meetings`; override with `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_DB`, `POSTGRES_PORT` (env or a root `.env`). Connection string: `postgresql://postgres:postgres@localhost:5432/video_meetings`. Requires Docker Desktop running. `docker compose down -v` wipes the data.
+`docker-compose.yml` at the root runs PostgreSQL 17 (`postgres:17-alpine`, container `video-meetings-postgres`) on `localhost:5432`, data in the `postgres-data` volume. Defaults: user `postgres`, password `postgres`, database `video_meetings`; override with `POSTGRES_USER`, `POSTGRES_PASSWORD`, `POSTGRES_DB`, `POSTGRES_PORT` (env or a root `.env`). Connection string: `postgresql://postgres:postgres@localhost:5432/video_meetings`. Requires Docker Desktop running. `docker compose down -v` wipes the data. The api's e2e tests use a separate `video_meetings_test` database on the same server (created automatically).
 
 ## Conventions
 
