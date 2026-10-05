@@ -14,6 +14,14 @@ const SALT_LENGTH = 16;
 // Hashes are stored as `<salt hex>:<key hex>`.
 @Injectable()
 export class PasswordService {
+  private dummy?: Promise<string>;
+
+  // A real hash of a random password, for verifying against when there is no user.
+  dummyHash(): Promise<string> {
+    this.dummy ??= this.hash(randomBytes(SALT_LENGTH).toString('hex'));
+    return this.dummy;
+  }
+
   async hash(password: string): Promise<string> {
     const salt = randomBytes(SALT_LENGTH);
     const key = await scryptAsync(password, salt, KEY_LENGTH);

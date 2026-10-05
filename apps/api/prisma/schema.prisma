@@ -15,5 +15,22 @@ model User {
   createdAt    DateTime @default(now()) @map("created_at")
   updatedAt    DateTime @updatedAt @map("updated_at")
 
+  meetings Meeting[]
+
   @@map("users")
+}
+
+model Meeting {
+  id           String   @id @default(uuid()) @db.Uuid
+  title        String
+  date         DateTime
+  // Invitees' emails; the owner is not repeated here.
+  participants String[]
+  ownerId      String   @map("owner_id") @db.Uuid
+  owner        User     @relation(fields: [ownerId], references: [id], onDelete: Cascade)
+  createdAt    DateTime @default(now()) @map("created_at")
+  updatedAt    DateTime @updatedAt @map("updated_at")
+
+  @@index([ownerId])
+  @@map("meetings")
 }
