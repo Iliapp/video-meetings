@@ -8,6 +8,7 @@ Each app has its own `CLAUDE.md` with app-specific notes; read it before working
 - Package manager is **pnpm only** (`pnpm@12.8.1`, enforced via `devEngines`). `npm`/`npx` fail with `EBADDEVENGINES`; use `pnpm` / `pnpm dlx`.
 - Workspace: `pnpm-workspace.yaml` includes `apps/*`; dependency install scripts run only for packages listed in its `allowBuilds`. Add a dependency to one app with `pnpm --filter <web|api> add <pkg>`.
 - Formatting: Prettier at the root (`.prettierrc`: single quotes, trailing commas). Both apps' ESLint configs include `eslint-config-prettier`. A Claude Code `PostToolUse` hook (`.claude/settings.json` → `.claude/hooks/format.mjs`) runs Prettier on every file Claude writes or edits.
+- Git hooks: Husky (`.husky/`, installed by the root `prepare` script on `pnpm install`). `pre-commit` runs `pnpm lint` and `pnpm test` (unit only; e2e needs Postgres, run it manually). Bypass in an emergency with `git commit --no-verify`.
 - MCP: `.mcp.json` registers the Playwright MCP server (`playwright`, run via `pnpm dlx @playwright/mcp@latest`) for browser automation against the running web app.
 
 ## Commands (from repo root)
