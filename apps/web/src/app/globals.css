@@ -3,6 +3,12 @@
 /* HeroUI v3 styles (defines --background, --foreground, --accent, ... and dark theme) */
 @import '@heroui/styles';
 
+/* Light theme tokens from the ui-ux-pro-max design system (trust blue, AA contrast on white) */
+:root:not(.dark, [data-theme='dark']) {
+  --accent: oklch(54.6% 0.215 262.9); /* #2563eb */
+  --danger: oklch(57.7% 0.245 27.3); /* #dc2626 */
+}
+
 @theme inline {
   --font-sans: var(--font-geist-sans);
   --font-mono: var(--font-geist-mono);
