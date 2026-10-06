@@ -12,7 +12,7 @@ import {
   Spinner,
   TextField,
 } from '@heroui/react';
-import { useState, type FormEvent } from 'react';
+import { useRef, useState, type FormEvent } from 'react';
 import { ApiError, register } from '@/lib/api';
 import { saveAccessToken } from '@/lib/auth-token';
 
@@ -28,6 +28,8 @@ export function RegisterForm() {
     Record<string, string>
   >({});
   const [registeredEmail, setRegisteredEmail] = useState<string | null>(null);
+  const [isSignedIn, setIsSignedIn] = useState(false);
+  const emailInputRef = useRef<HTMLInputElement>(null);
 
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -35,34 +37,47 @@ export function RegisterForm() {
     setValidationErrors({});
     setIsPending(true);
 
+    let accessToken: string;
     try {
-      const { accessToken } = await register({ email, password });
-      saveAccessToken(accessToken);
-      setRegisteredEmail(email.trim().toLowerCase());
+      ({ accessToken } = await register({ email, password }));
     } catch (e) {
       if (e instanceof ApiError && e.status === 409) {
         setValidationErrors({
           email: 'An account with this email already exists',
         });
+        emailInputRef.current?.focus();
       } else if (e instanceof ApiError) {
         setError(e.message);
       } else {
         setError('Failed to connect to the server. Please try again.');
       }
-    } finally {
       setIsPending(false);
+      return;
     }
+
+    // The account exists at this point; a blocked localStorage must not look like a failed sign-up.
+    try {
+      saveAccessToken(accessToken);
+      setIsSignedIn(true);
+    } catch {
+      setIsSignedIn(false);
+    }
+    setRegisteredEmail(email.trim().toLowerCase());
+    setIsPending(false);
   }
 
   if (registeredEmail) {
     return (
-      <Alert status="success">
+      <Alert role="status" status="success">
         <Alert.Indicator />
         <Alert.Content>
           <Alert.Title>Account created</Alert.Title>
           <Alert.Description>
-            You are signed in as{' '}
-            <span className="font-medium">{registeredEmail}</span>.
+            {isSignedIn ? 'You are signed in as' : 'Your account'}{' '}
+            <span className="font-medium">{registeredEmail}</span>
+            {isSignedIn
+              ? '.'
+              : ' is ready, but your browser blocked saving the session. Sign in to continue.'}
           </Alert.Description>
         </Alert.Content>
       </Alert>
@@ -76,7 +91,7 @@ export function RegisterForm() {
       onSubmit={(e) => void onSubmit(e)}
     >
       {error && (
-        <Alert status="danger">
+        <Alert role="alert" status="danger">
           <Alert.Indicator />
           <Alert.Content>
             <Alert.Title>Couldn&apos;t create your account</Alert.Title>
@@ -102,6 +117,7 @@ export function RegisterForm() {
         <Label>Email</Label>
         <InputGroup fullWidth className="h-12">
           <InputGroup.Input
+            ref={emailInputRef}
             autoComplete="email"
             placeholder="name@company.com"
           />

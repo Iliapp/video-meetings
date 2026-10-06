@@ -54,9 +54,9 @@ export default function RegisterPage() {
         <Logo inverted />
 
         <div className="flex max-w-xl flex-col gap-10">
-          <h2 className="text-4xl font-semibold tracking-tight text-balance xl:text-5xl">
+          <p className="text-4xl font-semibold tracking-tight text-balance xl:text-5xl">
             Meet face to face, wherever your team is.
-          </h2>
+          </p>
           <ul className="flex flex-col gap-6">
             {features.map(({ icon: Icon, title, text }) => (
               <li key={title} className="flex gap-4">
