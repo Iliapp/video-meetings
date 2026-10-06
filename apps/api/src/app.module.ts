@@ -3,11 +3,10 @@ import { ConfigModule } from '@nestjs/config';
 import { APP_PIPE } from '@nestjs/core';
 import { CqrsModule } from '@nestjs/cqrs';
 import { createObserveModule } from '@nestjs/observe';
-import { AppController } from './app.controller';
-import { AppService } from './app.service';
 import { AuthModule } from './auth/auth.module';
 import { MeetingsModule } from './meetings/meetings.module';
 import { PrismaModule } from './prisma/prisma.module';
+import { UsersModule } from './users/users.module';
 
 export const { ObserveModule, ObserveInstrument } = createObserveModule();
 
@@ -23,12 +22,11 @@ export const { ObserveModule, ObserveInstrument } = createObserveModule();
       serviceId: 'api',
     }),
     PrismaModule,
+    UsersModule,
     AuthModule,
     MeetingsModule,
   ],
-  controllers: [AppController],
   providers: [
-    AppService,
     // Registered here rather than in main.ts so e2e tests get validation too.
     {
       provide: APP_PIPE,

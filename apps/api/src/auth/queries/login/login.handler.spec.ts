@@ -1,7 +1,8 @@
 import { UnauthorizedException } from '@nestjs/common';
+import { QueryBus } from '@nestjs/cqrs';
 import { Test } from '@nestjs/testing';
 import { User } from '../../../generated/prisma/client';
-import { UsersService } from '../../../users/users.service';
+import { FindUserByEmailQuery } from '../../../users/queries/find-user-by-email/find-user-by-email.query';
 import { PasswordService } from '../../password.service';
 import { TokenService } from '../../token.service';
 import { LoginHandler } from './login.handler';
@@ -16,7 +17,7 @@ describe('LoginHandler', () => {
     updatedAt: new Date(),
   };
 
-  const users = { findByEmail: jest.fn() };
+  const queryBus = { execute: jest.fn() };
   const passwords = { verify: jest.fn(), dummyHash: jest.fn() };
   const tokens = { issue: jest.fn() };
   let handler: LoginHandler;
@@ -29,7 +30,7 @@ describe('LoginHandler', () => {
     const moduleRef = await Test.createTestingModule({
       providers: [
         LoginHandler,
-        { provide: UsersService, useValue: users },
+        { provide: QueryBus, useValue: queryBus },
         { provide: PasswordService, useValue: passwords },
         { provide: TokenService, useValue: tokens },
       ],
@@ -39,18 +40,21 @@ describe('LoginHandler', () => {
   });
 
   it('returns a token when the password matches', async () => {
-    users.findByEmail.mockResolvedValue(user);
+    queryBus.execute.mockResolvedValue(user);
     passwords.verify.mockResolvedValue(true);
 
     await expect(
       handler.execute(new LoginQuery(user.email, 'password')),
     ).resolves.toEqual({ accessToken: 'token' });
+    expect(queryBus.execute).toHaveBeenCalledWith(
+      new FindUserByEmailQuery(user.email),
+    );
     expect(passwords.verify).toHaveBeenCalledWith('password', 'stored-hash');
     expect(tokens.issue).toHaveBeenCalledWith(user);
   });
 
   it('rejects a wrong password', async () => {
-    users.findByEmail.mockResolvedValue(user);
+    queryBus.execute.mockResolvedValue(user);
     passwords.verify.mockResolvedValue(false);
 
     await expect(
@@ -61,7 +65,7 @@ describe('LoginHandler', () => {
 
   // Hashing for unknown emails too keeps response time from revealing which emails exist.
   it('still verifies a password against a dummy hash when the user does not exist', async () => {
-    users.findByEmail.mockResolvedValue(null);
+    queryBus.execute.mockResolvedValue(null);
     passwords.verify.mockResolvedValue(true);
 
     await expect(

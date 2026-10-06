@@ -18,7 +18,7 @@ Copy `.env.example` to `.env` (loaded by `@nestjs/config` and `prisma.config.ts`
 - `pnpm start:prod`: run `dist/main`
 - `pnpm lint`: ESLint over `src` and `test`
 - `pnpm test`: unit tests (Jest, `*.spec.ts` next to sources)
-- `pnpm test:e2e`: e2e tests in `test/` (config `test/jest-e2e.json`, uses supertest). Needs Postgres running; runs against `video_meetings_test` (override with `TEST_DATABASE_URL`), which `test/global-setup.ts` creates and migrates with `prisma migrate deploy`.
+- `pnpm test:e2e`: e2e tests in `test/` (config `test/jest-e2e.json`); needs Postgres, see Testing
 - `pnpm db:migrate`: create and apply a migration after editing `prisma/schema.prisma` (`prisma migrate dev`); it doesn't regenerate the client, so run `pnpm exec prisma generate` afterwards
 - `pnpm db:deploy`: apply pending migrations (`prisma migrate deploy`)
 - `pnpm db:studio`: open Prisma Studio
@@ -26,13 +26,23 @@ Copy `.env.example` to `.env` (loaded by `@nestjs/config` and `prisma.config.ts`
 
 Jest runs through `node --experimental-vm-modules`; call the scripts instead of invoking `jest` directly.
 
+## Testing
+
+Run both suites from `apps/api` (or `pnpm --filter api test` / `pnpm --filter api test:e2e` from root):
+
+1. `pnpm db:up` (from root): e2e needs Postgres on `localhost:5432`. Unit tests don't.
+2. `pnpm test`: unit specs (`src/**/*.spec.ts`), with Prisma, buses and services mocked through `Test.createTestingModule` providers.
+3. `pnpm test:e2e`: boots the full `AppModule` and calls it over HTTP with supertest. `test/setup-env.ts` points `DATABASE_URL` at `video_meetings_test` (or `TEST_DATABASE_URL`) and defaults `JWT_SECRET`, so no `.env` is needed. `test/global-setup.ts` runs `prisma migrate deploy` first.
+
+Run a single file with `pnpm test -- <path or pattern>` (same for `test:e2e`). Also run `pnpm lint`, `pnpm exec tsc --noEmit` and `pnpm build`; Jest doesn't type-check the whole project.
+
 ## Structure
 
 - `src/main.ts`: bootstrap, attaches `ObserveInstrument`, enables CORS for `WEB_ORIGIN`.
 - `src/app.module.ts`: root module; registers global `ConfigModule`, `CqrsModule.forRoot()`, the global `ValidationPipe` (via `APP_PIPE`, so e2e tests get it too), and `@nestjs/observe` (`ObserveModule.forRoot`) for tracing/metrics. `appKey`/`appSecret` are still placeholders; move them to env vars before using real credentials, and never hardcode secrets.
 - `src/prisma/`: global `PrismaModule` exporting `PrismaService` (extends `PrismaClient`).
-- `src/users/`: `UsersService` (find/create users; duplicate email → `409`).
-- `src/auth/`: CQRS (`@nestjs/cqrs`). `POST /auth/register` (`201`) dispatches `RegisterUserCommand` (`commands/register-user/`); `POST /auth/login` (`200`) dispatches `LoginQuery` (`queries/login/`). Both take `{ email, password }` and return `{ accessToken }` (JWT with `sub`, `email`, issued by `TokenService`). Emails are trimmed and lowercased; passwords hashed with scrypt (`PasswordService`); bad credentials → `401` with the same body for unknown email and wrong password.
+- `src/users/`: CQRS, owns user records, no controller. `CreateUserCommand` (`commands/create-user/`; duplicate email → `409`) and `FindUserByEmailQuery` (`queries/find-user-by-email/`). `UsersModule` exports nothing; it is imported only by `AppModule` to register its handlers.
+- `src/auth/`: CQRS (`@nestjs/cqrs`), credentials and tokens only. `POST /auth/register` (`201`) dispatches `RegisterUserCommand` (`commands/register-user/`), which hashes the password and sends `CreateUserCommand`; `POST /auth/login` (`200`) dispatches `LoginQuery` (`queries/login/`), which looks the user up with `FindUserByEmailQuery`. Both take `{ email, password }` and return `{ accessToken }` (JWT with `sub`, `email`, issued by `TokenService`). Emails are trimmed and lowercased; passwords hashed with scrypt (`PasswordService`); bad credentials → `401` with the same body for unknown email and wrong password.
   - `JwtAuthGuard` protects routes: verifies `Authorization: Bearer <jwt>` (else `401`) and sets `request.user`; read it with `@CurrentUser()` (`AuthUser` = `{ id, email }`). `AuthModule` exports the guard and `JwtModule`, so import `AuthModule` to use it.
 - `src/meetings/`: CQRS, all routes behind `JwtAuthGuard`. `POST /meetings` (`201`, `CreateMeetingCommand`) takes `{ title, date (ISO 8601), participants: email[] }` and makes the caller the owner. `GET /meetings` (`ListMeetingsQuery`) lists meetings the caller owns or is invited to (`meeting-access.ts`), sorted by date. `GET /meetings/:id` (`GetMeetingQuery`) returns one; unknown, non-UUID or not-visible ids → `404 Meeting not found`.
 - `src/generated/prisma/`: generated Prisma client (gitignored, don't edit). Import from `../generated/prisma/client`.
@@ -45,4 +55,5 @@ Jest runs through `node --experimental-vm-modules`; call the scripts instead of 
 - ESLint uses `recommendedTypeChecked`; `no-floating-promises` is an error, so `await` or `void` every promise.
 - Use constructor injection with providers; keep controllers thin and put logic in services.
 - Feature modules use CQRS: controllers only build a command (state change) or query (read) and send it through `CommandBus`/`QueryBus`. Each lives in `commands/<name>/` or `queries/<name>/` as `<name>.command.ts`/`<name>.query.ts` (extends `Command<Result>`/`Query<Result>` for typed results) plus `<name>.handler.ts`; register handlers in the module's `providers`.
+- Modules talk to each other through the buses, not by importing each other's services: dispatch the other module's command/query class (e.g. `auth` → `CreateUserCommand`). Only `AuthModule` is imported directly, for `JwtAuthGuard`.
 - Put unit specs beside the code (`foo.service.spec.ts`) and e2e specs in `test/*.e2e-spec.ts`.
