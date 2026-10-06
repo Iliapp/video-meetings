@@ -8,7 +8,7 @@ Each app has its own `CLAUDE.md` with app-specific notes; read it before working
 - Package manager is **pnpm only** (`pnpm@12.8.1`, enforced via `devEngines`). `npm`/`npx` fail with `EBADDEVENGINES`; use `pnpm` / `pnpm dlx`.
 - Workspace: `pnpm-workspace.yaml` includes `apps/*`; dependency install scripts run only for packages listed in its `allowBuilds`. Add a dependency to one app with `pnpm --filter <web|api> add <pkg>`.
 - Formatting: Prettier at the root (`.prettierrc`: single quotes, trailing commas). Both apps' ESLint configs include `eslint-config-prettier`. A Claude Code `PostToolUse` hook (`.claude/settings.json` → `.claude/hooks/format.mjs`) runs Prettier on every file Claude writes or edits.
-- Git hooks: Husky (`.husky/`, installed by the root `prepare` script on `pnpm install`). `pre-commit` runs `pnpm lint` and `pnpm test` (unit only; e2e needs Postgres, run it manually). Bypass in an emergency with `git commit --no-verify`.
+- Git hooks: Husky (`.husky/`, installed by the root `prepare` script on `pnpm install`). `pre-commit` runs `pnpm lint`, `pnpm typecheck` and `pnpm test` (unit only; e2e needs Postgres, run it manually). Bypass in an emergency with `git commit --no-verify`.
 - MCP: `.mcp.json` registers the Playwright MCP server (`playwright`, run via `pnpm dlx @playwright/mcp@latest`) for browser automation against the running web app.
 
 ## Commands (from repo root)
@@ -19,6 +19,7 @@ Each app has its own `CLAUDE.md` with app-specific notes; read it before working
 | `pnpm dev:web` / `pnpm dev:api`     | Run a single app                                      |
 | `pnpm build`                        | Build all apps                                        |
 | `pnpm lint`                         | Lint all apps                                         |
+| `pnpm typecheck`                    | Type-check all apps (`tsc --noEmit`)                  |
 | `pnpm test`                         | Run unit tests in all apps (api only; web has none)   |
 | `pnpm format` / `pnpm format:check` | Prettier write / check for the whole repo             |
 | `pnpm db:up` / `pnpm db:down`       | Start (and wait until healthy) / stop local Postgres  |

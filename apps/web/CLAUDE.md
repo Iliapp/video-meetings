@@ -10,6 +10,7 @@ Next.js 16 (App Router) + React 19 frontend for video meetings. Dev server on `:
 - `pnpm build`: production build
 - `pnpm start`: serve the production build
 - `pnpm lint`: ESLint (`eslint-config-next` core-web-vitals + typescript, plus prettier)
+- `pnpm typecheck`: `tsc --noEmit`
 
 ## Environment
 

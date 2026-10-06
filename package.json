@@ -15,7 +15,8 @@
     "db:up": "docker compose up -d --wait postgres",
     "db:down": "docker compose down",
     "db:logs": "docker compose logs -f postgres",
-    "prepare": "husky"
+    "prepare": "husky",
+    "typecheck": "pnpm -r typecheck"
   },
   "keywords": [],
   "author": "",
