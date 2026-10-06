@@ -18,13 +18,23 @@ Copy `.env.example` to `.env` (loaded by `@nestjs/config` and `prisma.config.ts`
 - `pnpm start:prod`: run `dist/main`
 - `pnpm lint`: ESLint over `src` and `test`
 - `pnpm test`: unit tests (Jest, `*.spec.ts` next to sources)
-- `pnpm test:e2e`: e2e tests in `test/` (config `test/jest-e2e.json`, uses supertest). Needs Postgres running; runs against `video_meetings_test` (override with `TEST_DATABASE_URL`), which `test/global-setup.ts` creates and migrates with `prisma migrate deploy`.
+- `pnpm test:e2e`: e2e tests in `test/` (config `test/jest-e2e.json`); needs Postgres, see Testing
 - `pnpm db:migrate`: create and apply a migration after editing `prisma/schema.prisma` (`prisma migrate dev`); it doesn't regenerate the client, so run `pnpm exec prisma generate` afterwards
 - `pnpm db:deploy`: apply pending migrations (`prisma migrate deploy`)
 - `pnpm db:studio`: open Prisma Studio
 - `pnpm exec prisma generate`: regenerate the client (also runs on `postinstall` and `build`)
 
 Jest runs through `node --experimental-vm-modules`; call the scripts instead of invoking `jest` directly.
+
+## Testing
+
+Run both suites from `apps/api` (or `pnpm --filter api test` / `pnpm --filter api test:e2e` from root):
+
+1. `pnpm db:up` (from root): e2e needs Postgres on `localhost:5432`. Unit tests don't.
+2. `pnpm test`: unit specs (`src/**/*.spec.ts`), with Prisma, buses and services mocked through `Test.createTestingModule` providers.
+3. `pnpm test:e2e`: boots the full `AppModule` and calls it over HTTP with supertest. `test/setup-env.ts` points `DATABASE_URL` at `video_meetings_test` (or `TEST_DATABASE_URL`) and defaults `JWT_SECRET`, so no `.env` is needed. `test/global-setup.ts` runs `prisma migrate deploy` first.
+
+Run a single file with `pnpm test -- <path or pattern>` (same for `test:e2e`). Also run `pnpm lint`, `pnpm exec tsc --noEmit` and `pnpm build`; Jest doesn't type-check the whole project.
 
 ## Structure
 

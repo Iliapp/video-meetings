@@ -18,7 +18,7 @@ Each app has its own `CLAUDE.md` with app-specific notes; read it before working
 | `pnpm dev:web` / `pnpm dev:api`     | Run a single app                                      |
 | `pnpm build`                        | Build all apps                                        |
 | `pnpm lint`                         | Lint all apps                                         |
-| `pnpm test`                         | Run tests in all apps                                 |
+| `pnpm test`                         | Run unit tests in all apps (api only; web has none)   |
 | `pnpm format` / `pnpm format:check` | Prettier write / check for the whole repo             |
 | `pnpm db:up` / `pnpm db:down`       | Start (and wait until healthy) / stop local Postgres  |
 | `pnpm db:logs`                      | Follow Postgres logs                                  |
@@ -30,6 +30,7 @@ Each app has its own `CLAUDE.md` with app-specific notes; read it before working
 ## Conventions
 
 - TypeScript strict mode everywhere.
+- Refactoring: run the affected app's tests (api: `pnpm test` and `pnpm test:e2e`, see `apps/api/CLAUDE.md`) and confirm they are green before you start, then run them again after each step. Don't continue from a red state. Tests that fail beforehand are reported, not fixed silently.
 - Don't commit build output (`dist`, `.next`, `*.tsbuildinfo`) or `.env*` files; they are gitignored.
 - Agent skills live in `.agents/skills/` (tracked in `skills-lock.json`) and are symlinked into `.claude/skills/`. Install new ones with `pnpm dlx skills add <source>`.
 
