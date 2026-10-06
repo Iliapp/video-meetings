@@ -9,6 +9,7 @@ Copy `.env.example` to `.env` (loaded by `@nestjs/config` and `prisma.config.ts`
 - `DATABASE_URL`: Postgres connection string (root `pnpm db:up` starts it).
 - `JWT_SECRET`: required, signs access tokens.
 - `JWT_EXPIRES_IN`: token lifetime, default `1h`.
+- `WEB_ORIGIN`: comma-separated origins allowed by CORS, default `http://localhost:3000`.
 
 ## Commands (run in `apps/api`, or `pnpm --filter api <script>` from root)
 
@@ -27,7 +28,7 @@ Jest runs through `node --experimental-vm-modules`; call the scripts instead of 
 
 ## Structure
 
-- `src/main.ts`: bootstrap, attaches `ObserveInstrument`.
+- `src/main.ts`: bootstrap, attaches `ObserveInstrument`, enables CORS for `WEB_ORIGIN`.
 - `src/app.module.ts`: root module; registers global `ConfigModule`, `CqrsModule.forRoot()`, the global `ValidationPipe` (via `APP_PIPE`, so e2e tests get it too), and `@nestjs/observe` (`ObserveModule.forRoot`) for tracing/metrics. `appKey`/`appSecret` are still placeholders; move them to env vars before using real credentials, and never hardcode secrets.
 - `src/prisma/`: global `PrismaModule` exporting `PrismaService` (extends `PrismaClient`).
 - `src/users/`: `UsersService` (find/create users; duplicate email → `409`).
