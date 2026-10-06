@@ -1,34 +1,26 @@
 'use client';
 
-import { Eye, EyeSlash } from '@gravity-ui/icons';
-import {
-  Alert,
-  Button,
-  Description,
-  FieldError,
-  Form,
-  InputGroup,
-  Label,
-  Spinner,
-  TextField,
-} from '@heroui/react';
+import { Alert, Button, Form, Spinner } from '@heroui/react';
+import { useRouter } from 'next/navigation';
 import { useRef, useState, type FormEvent } from 'react';
+import { EmailField } from '@/components/email-field';
+import { PasswordField } from '@/components/password-field';
+import { TextLink } from '@/components/text-link';
 import { ApiError, register } from '@/lib/api';
 import { saveAccessToken } from '@/lib/auth-token';
 
 const MIN_PASSWORD_LENGTH = 8;
 
 export function RegisterForm() {
+  const router = useRouter();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [isPasswordVisible, setIsPasswordVisible] = useState(false);
   const [isPending, setIsPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [validationErrors, setValidationErrors] = useState<
     Record<string, string>
   >({});
-  const [registeredEmail, setRegisteredEmail] = useState<string | null>(null);
-  const [isSignedIn, setIsSignedIn] = useState(false);
+  const [isStorageBlocked, setIsStorageBlocked] = useState(false);
   const emailInputRef = useRef<HTMLInputElement>(null);
 
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
@@ -58,26 +50,23 @@ export function RegisterForm() {
     // The account exists at this point; a blocked localStorage must not look like a failed sign-up.
     try {
       saveAccessToken(accessToken);
-      setIsSignedIn(true);
     } catch {
-      setIsSignedIn(false);
+      setIsStorageBlocked(true);
+      setIsPending(false);
+      return;
     }
-    setRegisteredEmail(email.trim().toLowerCase());
-    setIsPending(false);
+    router.replace('/');
   }
 
-  if (registeredEmail) {
+  if (isStorageBlocked) {
     return (
       <Alert role="status" status="success">
         <Alert.Indicator />
         <Alert.Content>
           <Alert.Title>Account created</Alert.Title>
           <Alert.Description>
-            {isSignedIn ? 'You are signed in as' : 'Your account'}{' '}
-            <span className="font-medium">{registeredEmail}</span>
-            {isSignedIn
-              ? '.'
-              : ' is ready, but your browser blocked saving the session. Sign in to continue.'}
+            Your browser blocked saving the session. Allow site data, then{' '}
+            <TextLink href="/login">sign in</TextLink>.
           </Alert.Description>
         </Alert.Content>
       </Alert>
@@ -85,105 +74,64 @@ export function RegisterForm() {
   }
 
   return (
-    <Form
-      className="flex flex-col gap-6"
-      validationErrors={validationErrors}
-      onSubmit={(e) => void onSubmit(e)}
-    >
-      {error && (
-        <Alert role="alert" status="danger">
-          <Alert.Indicator />
-          <Alert.Content>
-            <Alert.Title>Couldn&apos;t create your account</Alert.Title>
-            <Alert.Description>{error}</Alert.Description>
-          </Alert.Content>
-        </Alert>
-      )}
-
-      <TextField
-        fullWidth
-        className="gap-2"
-        isRequired
-        name="email"
-        type="email"
-        value={email}
-        onChange={setEmail}
-        validate={(value) =>
-          /^\S+@\S+\.\S+$/.test(value.trim())
-            ? null
-            : 'Enter an email address like name@company.com'
-        }
+    <div className="flex flex-col gap-6">
+      <Form
+        className="flex flex-col gap-6"
+        validationErrors={validationErrors}
+        onSubmit={(e) => void onSubmit(e)}
       >
-        <Label>Email</Label>
-        <InputGroup fullWidth className="h-12">
-          <InputGroup.Input
-            ref={emailInputRef}
-            autoComplete="email"
-            placeholder="name@company.com"
-          />
-        </InputGroup>
-        <FieldError className="px-0 text-sm" />
-      </TextField>
+        {error && (
+          <Alert role="alert" status="danger">
+            <Alert.Indicator />
+            <Alert.Content>
+              <Alert.Title>Couldn&apos;t create your account</Alert.Title>
+              <Alert.Description>{error}</Alert.Description>
+            </Alert.Content>
+          </Alert>
+        )}
 
-      <TextField
-        fullWidth
-        className="gap-2"
-        isRequired
-        name="password"
-        type={isPasswordVisible ? 'text' : 'password'}
-        value={password}
-        onChange={setPassword}
-        validate={(value) =>
-          value.length >= MIN_PASSWORD_LENGTH
-            ? null
-            : `Password must be at least ${MIN_PASSWORD_LENGTH} characters`
-        }
-      >
-        <Label>Password</Label>
-        <InputGroup fullWidth className="h-12">
-          <InputGroup.Input autoComplete="new-password" />
-          <InputGroup.Suffix className="pe-0.5">
-            <Button
-              isIconOnly
-              className="size-11"
-              aria-label={isPasswordVisible ? 'Hide password' : 'Show password'}
-              size="sm"
-              variant="ghost"
-              onPress={() => setIsPasswordVisible((visible) => !visible)}
-            >
-              {isPasswordVisible ? (
-                <EyeSlash className="size-4" />
-              ) : (
-                <Eye className="size-4" />
-              )}
-            </Button>
-          </InputGroup.Suffix>
-        </InputGroup>
-        <Description className="text-sm">
-          At least {MIN_PASSWORD_LENGTH} characters
-        </Description>
-        <FieldError className="px-0 text-sm" />
-      </TextField>
+        <EmailField
+          value={email}
+          onChange={setEmail}
+          inputRef={emailInputRef}
+        />
 
-      <Button
-        fullWidth
-        className="mt-2 h-12 rounded-xl"
-        isPending={isPending}
-        size="lg"
-        type="submit"
-        variant="primary"
-      >
-        {({ isPending }) =>
-          isPending ? (
-            <>
-              <Spinner color="current" size="sm" />
-              Creating account…
-            </>
-          ) : (
-            'Create account'
-          )
-        }
-      </Button>
-    </Form>
+        <PasswordField
+          value={password}
+          onChange={setPassword}
+          autoComplete="new-password"
+          description={`At least ${MIN_PASSWORD_LENGTH} characters`}
+          validate={(value) =>
+            value.length >= MIN_PASSWORD_LENGTH
+              ? null
+              : `Password must be at least ${MIN_PASSWORD_LENGTH} characters`
+          }
+        />
+
+        <Button
+          fullWidth
+          className="mt-2 h-12 rounded-xl"
+          isPending={isPending}
+          size="lg"
+          type="submit"
+          variant="primary"
+        >
+          {({ isPending }) =>
+            isPending ? (
+              <>
+                <Spinner color="current" size="sm" />
+                Creating account…
+              </>
+            ) : (
+              'Create account'
+            )
+          }
+        </Button>
+      </Form>
+
+      <p className="text-center text-muted">
+        Already have an account? <TextLink href="/login">Sign in</TextLink>
+      </p>
+    </div>
   );
 }
