@@ -5,6 +5,7 @@ Each app has its own `CLAUDE.md` with app-specific notes; read it before working
 
 ## Tooling
 
+- Node.js **24.9+** (`.nvmrc` = `24`; `nvm install` gets the latest 24.x). Git GUIs and IDEs may run the Husky hooks with the system Node, so make sure it is 24.9+ too. Root `devEngines.runtime` makes pnpm fail with `ERR_PNPM_BAD_RUNTIME_VERSION` on older Node, because NestJS 12 is ESM-only and Jest needs Node 24.9+ to load it.
 - Package manager is **pnpm only** (`pnpm@12.8.1`, enforced via `devEngines`). `npm`/`npx` fail with `EBADDEVENGINES`; use `pnpm` / `pnpm dlx`.
 - Workspace: `pnpm-workspace.yaml` includes `apps/*`; dependency install scripts run only for packages listed in its `allowBuilds`. Add a dependency to one app with `pnpm --filter <web|api> add <pkg>`.
 - Formatting: Prettier at the root (`.prettierrc`: single quotes, trailing commas). Both apps' ESLint configs include `eslint-config-prettier`. A Claude Code `PostToolUse` hook (`.claude/settings.json` → `.claude/hooks/format.mjs`) runs Prettier on every file Claude writes or edits.
