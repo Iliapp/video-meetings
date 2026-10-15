@@ -26,6 +26,11 @@
       "name": "pnpm",
       "version": "12.8.1",
       "onFail": "download"
+    },
+    "runtime": {
+      "name": "node",
+      "version": ">=24.9",
+      "onFail": "error"
     }
   },
   "packageManager": "pnpm@12.8.1",
