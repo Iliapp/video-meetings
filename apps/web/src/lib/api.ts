@@ -30,6 +30,19 @@ export interface Meeting {
   updatedAt: string;
 }
 
+export interface Recording {
+  id: string;
+  meetingId: string;
+  originalName: string;
+  mimeType: string;
+  kind: 'video' | 'audio';
+  sizeBytes: number;
+  /** `null` when the browser couldn't read it before upload. */
+  durationSeconds: number | null;
+  createdAt: string;
+  uploaderEmail: string;
+}
+
 export interface NewMeeting {
   title: string;
   date: string;
@@ -80,3 +93,11 @@ export const createMeeting = (token: string, meeting: NewMeeting) =>
 /** `404` when the meeting doesn't exist or the user isn't its owner or invited. */
 export const getMeeting = (token: string, id: string) =>
   request<Meeting>('GET', `/meetings/${encodeURIComponent(id)}`, { token });
+
+/** Newest first. `404` like `getMeeting`. */
+export const listRecordings = (token: string, meetingId: string) =>
+  request<Recording[]>(
+    'GET',
+    `/meetings/${encodeURIComponent(meetingId)}/recordings`,
+    { token },
+  );
