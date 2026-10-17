@@ -98,6 +98,12 @@ describe('recording-file', () => {
       expect(name).toHaveLength(255);
       expect(name.endsWith('.webm')).toBe(true);
     });
+
+    it('never splits a surrogate pair when it cuts', () => {
+      const name = sanitizeFileName(`${'a'.repeat(250)}😀😀.mp4`);
+
+      expect(name).toBe(`${'a'.repeat(250)}.mp4`);
+    });
   });
 
   it.each([

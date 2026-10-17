@@ -1,5 +1,9 @@
-import { UnsupportedMediaTypeException } from '@nestjs/common';
+import {
+  NotFoundException,
+  UnsupportedMediaTypeException,
+} from '@nestjs/common';
 import { Test } from '@nestjs/testing';
+import { Prisma } from '../../../generated/prisma/client';
 import { PrismaService } from '../../../prisma/prisma.service';
 import { detectRecordingFormat } from '../../recording-file';
 import { RecordingsStorageService } from '../../storage/recordings-storage.service';
@@ -30,6 +34,7 @@ describe('UploadRecordingHandler', () => {
 
   beforeEach(async () => {
     jest.resetAllMocks();
+    storage.remove.mockResolvedValue(undefined);
     const moduleRef = await Test.createTestingModule({
       providers: [
         UploadRecordingHandler,
@@ -86,13 +91,13 @@ describe('UploadRecordingHandler', () => {
     );
   });
 
-  it('rejects an unsupported file with 415, deletes it and creates no row', async () => {
+  // The temp file itself is deleted by RecordingUploadInterceptor.
+  it('rejects an unsupported file with 415 and creates no row', async () => {
     detect.mockResolvedValue(undefined);
 
     await expect(handler.execute(command)).rejects.toBeInstanceOf(
       UnsupportedMediaTypeException,
     );
-    expect(storage.discard).toHaveBeenCalledWith(file.path);
     expect(storage.commit).not.toHaveBeenCalled();
     expect(prisma.recording.create).not.toHaveBeenCalled();
   });
@@ -104,6 +109,32 @@ describe('UploadRecordingHandler', () => {
     prisma.recording.create.mockRejectedValue(error);
 
     await expect(handler.execute(command)).rejects.toBe(error);
+    expect(storage.remove).toHaveBeenCalledWith('storage-key');
+  });
+
+  it('keeps the original error when the committed file cannot be removed', async () => {
+    const error = new Error('database is down');
+    detect.mockResolvedValue({ mimeType: 'audio/mpeg', kind: 'audio' });
+    storage.commit.mockResolvedValue('storage-key');
+    storage.remove.mockRejectedValue(new Error('EACCES'));
+    prisma.recording.create.mockRejectedValue(error);
+
+    await expect(handler.execute(command)).rejects.toBe(error);
+  });
+
+  it('answers 404 when the meeting was deleted during the upload', async () => {
+    detect.mockResolvedValue({ mimeType: 'audio/mpeg', kind: 'audio' });
+    storage.commit.mockResolvedValue('storage-key');
+    prisma.recording.create.mockRejectedValue(
+      new Prisma.PrismaClientKnownRequestError('Foreign key violated', {
+        code: 'P2003',
+        clientVersion: 'test',
+      }),
+    );
+
+    await expect(handler.execute(command)).rejects.toBeInstanceOf(
+      NotFoundException,
+    );
     expect(storage.remove).toHaveBeenCalledWith('storage-key');
   });
 });

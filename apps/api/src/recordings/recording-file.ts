@@ -82,8 +82,17 @@ export function sanitizeFileName(name: string): string {
   if (clean.length <= MAX_NAME_LENGTH) {
     return clean;
   }
+  // Cut by code points, so a surrogate pair (e.g. an emoji) is never split.
   const ext = extname(clean);
-  return clean.slice(0, MAX_NAME_LENGTH - ext.length) + ext;
+  const stem = [...clean.slice(0, clean.length - ext.length)];
+  let cut = '';
+  for (const char of stem) {
+    if (cut.length + char.length + ext.length > MAX_NAME_LENGTH) {
+      break;
+    }
+    cut += char;
+  }
+  return cut + ext;
 }
 
 const UNITS = ['bytes', 'KB', 'MB', 'GB', 'TB'];

@@ -6,6 +6,7 @@ import {
   ParseFilePipe,
   Post,
   UploadedFile,
+  UseFilters,
   UseGuards,
   UseInterceptors,
 } from '@nestjs/common';
@@ -14,6 +15,7 @@ import { FileInterceptor } from '@nestjs/platform-express';
 import type { AuthUser } from '../auth/auth-user';
 import { CurrentUser } from '../auth/current-user.decorator';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
+import { CloseConnectionOnErrorFilter } from './close-connection-on-error.filter';
 import { UploadRecordingCommand } from './commands/upload-recording/upload-recording.command';
 import { UploadRecordingDto } from './dto/upload-recording.dto';
 import { MeetingOwnerGuard } from './meeting-owner.guard';
@@ -33,6 +35,7 @@ export class RecordingsController {
   // cleanup) → FileInterceptor (streams the file to disk) → pipes → handler.
   @Post()
   @UseGuards(MeetingOwnerGuard)
+  @UseFilters(CloseConnectionOnErrorFilter)
   @UseInterceptors(RecordingUploadInterceptor, FileInterceptor('file'))
   upload(
     @CurrentUser() user: AuthUser,

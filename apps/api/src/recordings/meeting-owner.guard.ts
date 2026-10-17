@@ -22,7 +22,7 @@ export class MeetingOwnerGuard implements CanActivate {
     );
     if (meeting.ownerId !== request.user.id) {
       throw new ForbiddenException(
-        'Only the meeting owner can upload recordings',
+        'Only the meeting owner can change recordings',
       );
     }
     return true;

@@ -49,26 +49,33 @@ Do not route uploads through Next.js (Server Actions or rewrites): they have sma
 Nest runs **guards → interceptors → pipes → handler**. multer reads the body inside the interceptor, so anything that can reject the request without the file must be a guard:
 
 1. `JwtAuthGuard`: `401`.
-2. `MeetingOwnerGuard` (new, in `recordings/`): dispatches `GetMeetingQuery` on the `QueryBus`. Not visible → `404`; visible but not the owner → `403`. It also rejects early with `413` when `Content-Length` is larger than `RECORDINGS_MAX_BYTES + 64 KiB` (an allowance for multipart overhead). The exact limit is still enforced by multer.
-3. `FileInterceptor('file')`: streams the body to `RECORDINGS_DIR/incoming/<uuid>`.
-4. Handler (command): format check, `rename`, DB row, cleanup on any failure.
+2. `MeetingOwnerGuard` (new, in `recordings/`): dispatches `GetMeetingQuery` on the `QueryBus`. Not visible → `404`; visible but not the owner → `403`.
+3. `RecordingUploadInterceptor`: rejects early with `413` when `Content-Length` is larger than `RECORDINGS_MAX_BYTES + 64 KiB` (an allowance for multipart overhead), and deletes the temp file on any later error. The exact limit is still enforced by multer.
+4. `FileInterceptor('file')`: streams the body to `RECORDINGS_DIR/incoming/<uuid>`.
+5. Handler (command): format check, `rename`, DB row, cleanup on any failure.
+
+An early rejection sends `Connection: close` (`CloseConnectionOnErrorFilter`). Otherwise Node keeps reading and discarding the rest of the body to reuse the connection.
 
 Without step 2, an outsider could make the server write 2 GB before getting a `404`.
 
 ### multer configuration
 
-Register options once per module, so env values come from `ConfigService`:
+Register options once per module, so env values come from the recordings config:
 
 ```ts
 MulterModule.registerAsync({
-  inject: [ConfigService, RecordingsStorage],
-  useFactory: (config: ConfigService, storage: RecordingsStorage) => ({
+  imports: [RecordingsStorageModule],
+  inject: [recordingsConfig.KEY, RecordingsStorageService],
+  useFactory: (
+    config: RecordingsConfig,
+    storage: RecordingsStorageService,
+  ) => ({
     storage: diskStorage({
       destination: storage.incomingDir, // RECORDINGS_DIR/incoming, created on startup
       filename: (_req, _file, cb) => cb(null, randomUUID()),
     }),
     limits: {
-      fileSize: config.get('RECORDINGS_MAX_BYTES'),
+      fileSize: config.maxBytes,
       files: 1,
       fields: 5,
       parts: 6,
@@ -90,14 +97,16 @@ Send it as a text part before the file. Validate it with the global pipe:
 ```ts
 export class UploadRecordingDto {
   @IsOptional()
-  @Type(() => Number)
+  @Transform(({ value }) =>
+    typeof value === 'string' && value.trim() !== '' ? Number(value) : NaN,
+  )
   @IsNumber({ allowInfinity: false, allowNaN: false })
   @Min(0)
   durationSeconds?: number;
 }
 ```
 
-The plan says an invalid value is stored as `null`, not rejected. Either relax this (`@Transform` that turns non-finite values into `undefined`) or return `400`. Returning `400` is simpler and the web never sends invalid values. Pick one and write it into the plan.
+An invalid value, including a blank one (`Number('')` is `0`, so the DTO uses `@Transform` instead of `@Type(() => Number)`), gets `400`; an omitted one is stored as `null`. The web never sends invalid values. The plan records this.
 
 ### Long uploads
 
@@ -120,7 +129,7 @@ In Nest 12 `FileTypeValidator` calls `fileTypeFromBuffer(file.buffer)`. With dis
 
 `file-type` 22.1.1 is already in the tree. Add it as a direct api dependency with the same version, so pnpm resolves it from `src/`. Run `fileTypeFromFile(path)` on the temp file. It reads only the first few KB.
 
-It is ESM-only. Load it the same way Nest does, with `await import('file-type')`, which works in the CJS build and in Jest (the scripts already run with `--experimental-vm-modules`). Wrap it in the storage service or a `detectMediaType()` helper so unit tests can mock it.
+It is ESM-only. A static `import { fileTypeFromFile } from 'file-type'` works in the CJS build (Node 24 `require(esm)`) and in Jest (the scripts run with `--experimental-vm-modules`). It is wrapped in `detectRecordingFormat()` (`src/recordings/recording-file.ts`) so unit tests can mock it.
 
 ### Allow-list
 
@@ -374,11 +383,11 @@ HeroUI's `ProgressBar` shows progress, `AlertDialog` confirms deletes, `Toast` s
 
 ## Decisions to record in the plan
 
-1. A `MeetingOwnerGuard` runs before `FileInterceptor`; access and `Content-Length` checks happen before any bytes are written.
+1. `MeetingOwnerGuard` (access) and `RecordingUploadInterceptor` (`Content-Length`) run before `FileInterceptor`, so these checks happen before any bytes are written.
 2. Format detection uses `file-type` (`fileTypeFromFile`) directly, with the allow-list above. Nest's `FileTypeValidator` is not used.
 3. multer gets `defParamCharset: 'utf8'`.
 4. `Recording.sizeBytes` is `BigInt`.
 5. Files go through `RECORDINGS_DIR/incoming/` and are renamed into place; `incoming/` is emptied on startup.
 6. Signed URL tokens are HMAC-signed with a key derived from `JWT_SECRET` (HKDF); no new secret env var. A public base URL for the api (`API_PUBLIC_URL`) may be needed to build absolute links.
-7. An invalid `durationSeconds`: `400` or stored as `null` (the plan says `null`; this needs a decision).
-8. New dependencies: api `file-type` (direct, same version as Nest's) and `@types/multer`; web `react-aria-components`.
+7. An invalid `durationSeconds` (blank included) gets `400`; an omitted one is stored as `null`.
+8. New dependencies: api `file-type` and `multer` (direct, same versions as Nest's) and `@types/multer`; web `react-aria-components`.

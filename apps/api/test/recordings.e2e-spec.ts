@@ -140,6 +140,43 @@ describe('Recordings (e2e)', () => {
     return res.body as RecordingResponse;
   };
 
+  // Sends the headers (and optionally the start of a body) and waits for the
+  // response without sending the rest, like a large upload still in flight.
+  const startUpload = (
+    user: TestUser,
+    meetingId: string,
+    contentLength: number,
+  ) =>
+    new Promise<{
+      status?: number;
+      connection?: string;
+      closed: Promise<void>;
+    }>((resolve, reject) => {
+      const { port } = (server() as Server).address() as AddressInfo;
+      const req = httpRequest({
+        host: '127.0.0.1',
+        port,
+        method: 'POST',
+        path: `/meetings/${meetingId}/recordings`,
+        headers: {
+          authorization: `Bearer ${user.token}`,
+          'content-type': 'multipart/form-data; boundary=e2e',
+          'content-length': String(contentLength),
+        },
+      });
+      req.on('error', () => {});
+      req.on('response', (res) => {
+        res.resume();
+        resolve({
+          status: res.statusCode,
+          connection: res.headers.connection,
+          closed: new Promise((done) => req.socket?.on('close', done)),
+        });
+      });
+      setTimeout(() => reject(new Error('No response')), 3000);
+      req.write('--e2e\r\n');
+    });
+
   const listRecordings = (user: TestUser | null, meetingId: string) => {
     const req = request(server()).get(`/meetings/${meetingId}/recordings`);
     return user ? req.auth(user.token, { type: 'bearer' }) : req;
@@ -251,6 +288,8 @@ describe('Recordings (e2e)', () => {
       ['not a number', 'abc'],
       ['negative', -1],
       ['infinite', 'Infinity'],
+      ['blank', ''],
+      ['whitespace', '  '],
     ])(
       'returns 400 when the duration is %s and stores nothing',
       async (_case, durationSeconds) => {
@@ -389,6 +428,30 @@ describe('Recordings (e2e)', () => {
       await expectNothingStored(owner, meetingId, filesBefore);
     });
 
+    describe('early rejection', () => {
+      it('answers before the body arrives and closes the connection for an invited participant', async () => {
+        const owner = await signUp();
+        const guest = await signUp();
+        const meetingId = await createMeeting(owner, [guest.email]);
+
+        const res = await startUpload(guest, meetingId, 1_000_000);
+
+        expect(res).toMatchObject({ status: 403, connection: 'close' });
+        await res.closed;
+      });
+
+      it('answers 413 before the body arrives when Content-Length is over the limit', async () => {
+        const owner = await signUp();
+        const meetingId = await createMeeting(owner);
+
+        const res = await startUpload(owner, meetingId, MAX_BYTES + 1_000_000);
+
+        expect(res).toMatchObject({ status: 413, connection: 'close' });
+        await res.closed;
+        expect(incomingFiles()).toEqual([]);
+      });
+    });
+
     describe('access', () => {
       const sample = () => ({
         buffer: fixture('sample.mp3'),
@@ -404,7 +467,7 @@ describe('Recordings (e2e)', () => {
         const res = await upload(guest, meetingId, sample()).expect(403);
 
         expect(res.body).toMatchObject({
-          message: 'Only the meeting owner can upload recordings',
+          message: 'Only the meeting owner can change recordings',
         });
         await expectNothingStored(owner, meetingId, filesBefore);
       });
