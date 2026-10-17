@@ -344,6 +344,33 @@ test.describe('upload', () => {
   });
 });
 
+test.describe('upload while the list failed to load', () => {
+  test.use({ allowConsoleErrors: [/ERR_FAILED/] });
+
+  test('reloads the list, so the new recording shows', async ({ page }) => {
+    const owner = await signUp();
+    const meeting = await createMeeting(owner);
+    let listFailed = false;
+    await page.route(
+      `${API_URL}/meetings/${meeting.id}/recordings`,
+      (route) => {
+        if (route.request().method() === 'GET' && !listFailed) {
+          listFailed = true;
+          return route.abort('failed');
+        }
+        return route.continue();
+      },
+    );
+    await openMeeting(page, owner, meeting);
+    await expect(page.getByText("Couldn't load recordings")).toBeVisible();
+
+    await fileInput(page).setInputFiles(fixturePath('sample.mp3'));
+
+    await expect(recordingItems(page)).toHaveCount(1);
+    await expect(recordingItems(page)).toContainText('sample.mp3');
+  });
+});
+
 test.describe('layout', () => {
   for (const width of [375, 1440, 1920]) {
     test(`has no horizontal scroll at ${width} px`, async ({ page }) => {

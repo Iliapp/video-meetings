@@ -69,13 +69,24 @@ export function RecordingsSection({
     };
   }, [token, meetingId, onUnauthorized, reloadKey]);
 
-  const onUploaded = useCallback((recording: Recording) => {
-    setState((s) =>
-      s.status === 'ready'
-        ? { status: 'ready', recordings: [recording, ...s.recordings] }
-        : s,
-    );
-  }, []);
+  const isListReady = state.status === 'ready';
+  const onUploaded = useCallback(
+    (recording: Recording) => {
+      if (isListReady) {
+        setState((s) =>
+          s.status === 'ready'
+            ? { status: 'ready', recordings: [recording, ...s.recordings] }
+            : s,
+        );
+      } else {
+        // The list is loading or failed: load it again, so the new recording
+        // isn't lost or overwritten by an older response.
+        setState({ status: 'loading' });
+        setReloadKey((key) => key + 1);
+      }
+    },
+    [isListReady],
+  );
   const upload = useRecordingUpload({
     token,
     meetingId,

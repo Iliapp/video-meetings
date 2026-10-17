@@ -49,6 +49,14 @@ export interface NewMeeting {
   participants: string[];
 }
 
+/** The Nest error message, or a non-empty fallback (statusText is empty over HTTP/2). */
+function errorMessage(data: unknown, status: number): string {
+  const message = (data as { message?: unknown } | null)?.message;
+  if (Array.isArray(message) && message.length) return message.join(', ');
+  if (typeof message === 'string' && message) return message;
+  return `Request failed (${status})`;
+}
+
 async function request<T>(
   method: 'GET' | 'POST',
   path: string,
@@ -66,13 +74,7 @@ async function request<T>(
   const data: unknown = await response.json().catch(() => null);
 
   if (!response.ok) {
-    const message = (data as { message?: string | string[] } | null)?.message;
-    throw new ApiError(
-      response.status,
-      Array.isArray(message)
-        ? message.join(', ')
-        : (message ?? response.statusText),
-    );
+    throw new ApiError(response.status, errorMessage(data, response.status));
   }
 
   return data as T;
@@ -132,21 +134,19 @@ export function uploadRecording(
       if (e.lengthComputable) onProgress(e.loaded / e.total);
     };
     xhr.onload = () => {
-      const data = xhr.response as
-        Recording | { message?: string | string[] } | null;
+      // `responseType = 'json'` gives null for an empty or non-JSON body.
+      const data: unknown = xhr.response;
       if (xhr.status >= 200 && xhr.status < 300) {
-        resolve(data as Recording);
+        if (data && typeof data === 'object' && 'id' in data) {
+          resolve(data as Recording);
+        } else {
+          reject(
+            new ApiError(xhr.status, 'Unexpected response from the server.'),
+          );
+        }
         return;
       }
-      const message = (data as { message?: string | string[] } | null)?.message;
-      reject(
-        new ApiError(
-          xhr.status,
-          Array.isArray(message)
-            ? message.join(', ')
-            : (message ?? xhr.statusText),
-        ),
-      );
+      reject(new ApiError(xhr.status, errorMessage(data, xhr.status)));
     };
     xhr.onerror = () => reject(new ApiError(0, UPLOAD_FAILED_MESSAGE));
     xhr.onabort = () =>

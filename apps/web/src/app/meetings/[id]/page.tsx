@@ -7,5 +7,6 @@ export const metadata: Metadata = {
 
 export default async function Page({ params }: PageProps<'/meetings/[id]'>) {
   const { id } = await params;
-  return <MeetingPage id={id} />;
+  // Keyed so moving to another meeting resets its state and any upload.
+  return <MeetingPage key={id} id={id} />;
 }

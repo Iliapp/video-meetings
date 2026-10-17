@@ -18,7 +18,7 @@ Next.js 16 (App Router) + React 19 frontend for video meetings. Dev server on `:
 Copy `.env.example` to `.env.local`:
 
 - `NEXT_PUBLIC_API_URL`: base URL of `apps/api` (default `http://localhost:4000`).
-- `NEXT_PUBLIC_RECORDINGS_MAX_BYTES`: upload size pre-check, default `2147483648` (2 GB). Keep it equal to the api's `RECORDINGS_MAX_BYTES`.
+- `NEXT_PUBLIC_RECORDINGS_MAX_BYTES`: upload size pre-check, default `2147483648` (2 GB). Keep it equal to the api's `RECORDINGS_MAX_BYTES`; `next.config.ts` fails the build when it isn't a positive integer.
 - `NEXT_DIST_DIR`: build directory, default `.next`. Only the e2e web server sets it (`.next-e2e`).
 
 ## Structure

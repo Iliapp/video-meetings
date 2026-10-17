@@ -5,6 +5,7 @@ import { Alert, Button, Label, ProgressBar } from '@heroui/react';
 import {
   useCallback,
   useEffect,
+  useMemo,
   useRef,
   useState,
   type ReactNode,
@@ -76,7 +77,9 @@ export function useRecordingUpload({
       controllerRef.current = controller;
       setState({ status: 'uploading', fileName: file.name, progress: 0 });
       try {
-        const durationSeconds = await readMediaDuration(file);
+        const durationSeconds = await readMediaDuration(file, {
+          signal: controller.signal,
+        });
         controller.signal.throwIfAborted();
         const recording = await uploadRecording(
           token,
@@ -117,17 +120,22 @@ export function useRecordingUpload({
     [token, meetingId, onUploaded, onUnauthorized],
   );
 
-  return {
-    state,
-    start: (file: File) => void start(file),
-    cancel: () => controllerRef.current?.abort(),
-    retry: () => {
-      if (state.status === 'error' && state.retryFile) {
-        void start(state.retryFile);
-      }
-    },
-    dismiss: () => setState({ status: 'idle' }),
-  };
+  const retryFile = state.status === 'error' ? state.retryFile : undefined;
+  // Stable callbacks, so progress updates don't re-render the picker and
+  // drop zones with new props.
+  const actions = useMemo(
+    () => ({
+      start: (file: File) => void start(file),
+      cancel: () => controllerRef.current?.abort(),
+      retry: () => {
+        if (retryFile) void start(retryFile);
+      },
+      dismiss: () => setState({ status: 'idle' }),
+    }),
+    [start, retryFile],
+  );
+
+  return { state, ...actions };
 }
 
 export function UploadButton({

@@ -71,7 +71,10 @@ export function validateRecordingFile(file: File): string | null {
  */
 export function readMediaDuration(
   file: File,
-  timeoutMs = 5000,
+  {
+    signal,
+    timeoutMs = 5000,
+  }: { signal?: AbortSignal; timeoutMs?: number } = {},
 ): Promise<number | undefined> {
   return new Promise((resolve) => {
     const isAudio = ['.mp3', '.m4a', '.wav'].includes(extensionOf(file.name));
@@ -79,6 +82,7 @@ export function readMediaDuration(
     const url = URL.createObjectURL(file);
     const done = (duration?: number) => {
       clearTimeout(timer);
+      signal?.removeEventListener('abort', onAbort);
       media.onloadedmetadata = null;
       media.onerror = null;
       media.removeAttribute('src');
@@ -91,6 +95,9 @@ export function readMediaDuration(
       );
     };
     const timer = setTimeout(() => done(), timeoutMs);
+    // Cancel shouldn't wait for slow metadata; the caller checks the signal.
+    const onAbort = () => done();
+    signal?.addEventListener('abort', onAbort, { once: true });
     media.preload = 'metadata';
     media.muted = true;
     media.onloadedmetadata = () => done(media.duration);
