@@ -1,1 +1,4 @@
 /src/generated/
+
+# Uploaded recordings (default RECORDINGS_DIR)
+/recordings/

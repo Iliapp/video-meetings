@@ -15,7 +15,8 @@ model User {
   createdAt    DateTime @default(now()) @map("created_at")
   updatedAt    DateTime @updatedAt @map("updated_at")
 
-  meetings Meeting[]
+  meetings   Meeting[]
+  recordings Recording[]
 
   @@map("users")
 }
@@ -31,6 +32,34 @@ model Meeting {
   createdAt    DateTime @default(now()) @map("created_at")
   updatedAt    DateTime @updatedAt @map("updated_at")
 
+  recordings Recording[]
+
   @@index([ownerId])
   @@map("meetings")
+}
+
+enum RecordingKind {
+  video
+  audio
+}
+
+model Recording {
+  id              String        @id @default(uuid()) @db.Uuid
+  meetingId       String        @map("meeting_id") @db.Uuid
+  meeting         Meeting       @relation(fields: [meetingId], references: [id], onDelete: Cascade)
+  uploaderId      String        @map("uploader_id") @db.Uuid
+  uploader        User          @relation(fields: [uploaderId], references: [id], onDelete: Cascade)
+  originalName    String        @map("original_name")
+  // Canonical MIME type derived from the extension and magic bytes, never the client's Content-Type.
+  mimeType        String        @map("mime_type")
+  kind            RecordingKind
+  // BigInt: Int is 32-bit and overflows at 2 GiB.
+  sizeBytes       BigInt        @map("size_bytes")
+  durationSeconds Float?        @map("duration_seconds")
+  // File name under RECORDINGS_DIR; never the original name.
+  storageKey      String        @unique @map("storage_key") @db.Uuid
+  createdAt       DateTime      @default(now()) @map("created_at")
+
+  @@index([meetingId, createdAt(sort: Desc)])
+  @@map("recordings")
 }
