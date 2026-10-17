@@ -8,7 +8,7 @@
 - **Storage:** original files go on local disk in a directory set by a new api env var `RECORDINGS_DIR`. Each file is stored under a server-generated UUID key, never under the original name. A storage service hides the file layout from the rest of the code. Metadata goes in Postgres (Prisma `Recording` model).
 - **Size limit:** set by `RECORDINGS_MAX_BYTES` on the api and `NEXT_PUBLIC_RECORDINGS_MAX_BYTES` on the web, both defaulting to 2 GB. e2e tests lower both, so size rejection can be tested without a 2 GB file.
 - **Format:** the api maps the file extension, checked against the file's magic bytes, to a fixed MIME type and kind (video/audio). It never stores the client's `Content-Type`.
-- **Duration:** the web app reads it from the file's media metadata before upload. It may be unknown: WebM from `MediaRecorder` often reports `Infinity`. In that case the web app sends no duration. The api accepts an optional finite non-negative number and stores `null` otherwise. The list shows "—" for an unknown duration.
+- **Duration:** the web app reads it from the file's media metadata before upload. It may be unknown: WebM from `MediaRecorder` often reports `Infinity`. In that case the web app sends no duration. The api accepts an optional finite non-negative number, stores `null` when it is omitted, and answers `400` for any other value. The list shows "—" for an unknown duration.
 - **Long uploads:** the api raises the Node HTTP server's `requestTimeout` (300 s by default) in `main.ts`, so a 2 GB upload over a slow connection isn't cut off.
 - **Playback and download auth:** an authenticated endpoint returns signed URLs. Their TTL is set by `RECORDING_URL_TTL`, with a default long enough to cover a viewing session. The stream and download endpoints check the signed token rather than a `Bearer` header, so `<video>`, `<audio>` and download links work. Streaming supports HTTP Range requests. Both endpoints respond with `X-Content-Type-Options: nosniff`, and the download encodes non-ASCII file names with `filename*`. If a URL expires mid-playback, the player fetches new URLs and resumes from where it was.
 - **Access:** a new CQRS feature module, `src/recordings/`, checks access to a meeting through `GetMeetingQuery` on the bus. A user who is neither the owner nor invited gets `404`. An invited participant who calls upload or delete gets `403`.
@@ -29,22 +29,22 @@
 **Affects:** backend / database
 **Tasks:**
 
-- [ ] Write the e2e tests first (`test/recordings.e2e-spec.ts`), plus the fixtures and the temp `RECORDINGS_DIR` in `test/setup-env.ts`. Run them and confirm they fail.
+- [x] Write the e2e tests first (`test/recordings.e2e-spec.ts`), plus the fixtures and the temp `RECORDINGS_DIR` in `test/setup-env.ts`. Run them and confirm they fail.
   - Upload each supported format, including a WebM without duration, which is stored as `null`.
   - Rejections for format (`415`), including a file renamed to a supported extension, and for size (`413`). The message names the reason, and no row or file is left behind.
   - An upload aborted mid-request leaves no row or file.
   - A list of at least 10 recordings, newest first, with full metadata.
   - Owner, invited and outsider access to upload and list.
   - Data still present after the app is closed and started again.
-- [ ] Add a Prisma `Recording` model and migration: meeting, uploader, original file name, MIME type, kind (video/audio), size, nullable duration, storage key (UUID), created at. Add `RECORDINGS_DIR`, `RECORDINGS_MAX_BYTES` and a local-disk storage service.
-- [ ] Generate the `recordings` CQRS module. Add `@types/multer`.
+- [x] Add a Prisma `Recording` model and migration: meeting, uploader, original file name, MIME type, kind (video/audio), size, nullable duration, storage key (UUID), created at. Add `RECORDINGS_DIR`, `RECORDINGS_MAX_BYTES` and a local-disk storage service.
+- [x] Generate the `recordings` CQRS module. Add `@types/multer`.
   - `POST /meetings/:id/recordings` takes a multipart file plus an optional duration and streams it to disk.
   - It accepts only MP4, WebM, MP3, M4A and WAV within the size limit, and derives the MIME type and kind from the extension plus magic bytes.
   - Only the owner can upload: invited participants get `403`, everyone else `404`.
   - On any rejection, failure or aborted request, it deletes the partial file and creates no row.
   - Raise the server's `requestTimeout` in `main.ts`.
-- [ ] `GET /meetings/:id/recordings` lists recordings newest first, with name, kind, size, duration, upload date and uploader email. The owner and invited participants can list. Everyone else gets `404`.
-- [ ] Add unit tests for the handlers and the storage service. Update `apps/api/CLAUDE.md` (Structure, env, timeout) and `.env.example`. Run the Phase 1 e2e tests and confirm they now pass.
+- [x] `GET /meetings/:id/recordings` lists recordings newest first, with name, kind, size, duration, upload date and uploader email. The owner and invited participants can list. Everyone else gets `404`.
+- [x] Add unit tests for the handlers and the storage service. Update `apps/api/CLAUDE.md` (Structure, env, timeout) and `.env.example`. Run the Phase 1 e2e tests and confirm they now pass.
 
 **Done criteria:** All Phase 1 e2e tests that were red at the start now pass, along with the existing api e2e suite. `pnpm lint`, `pnpm typecheck`, `pnpm test` and `pnpm test:e2e` pass.
 
