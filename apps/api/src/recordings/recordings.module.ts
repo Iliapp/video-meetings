@@ -5,6 +5,7 @@ import { diskStorage } from 'multer';
 import { AuthModule } from '../auth/auth.module';
 import { UploadRecordingHandler } from './commands/upload-recording/upload-recording.handler';
 import { MeetingOwnerGuard } from './meeting-owner.guard';
+import { ListRecordingsHandler } from './queries/list-recordings/list-recordings.handler';
 import {
   hasAllowedExtension,
   UNSUPPORTED_FORMAT_MESSAGE,
@@ -49,6 +50,7 @@ import { RecordingsStorageService } from './storage/recordings-storage.service';
   controllers: [RecordingsController],
   providers: [
     UploadRecordingHandler,
+    ListRecordingsHandler,
     MeetingOwnerGuard,
     RecordingUploadInterceptor,
   ],
