@@ -30,10 +30,31 @@ export interface Meeting {
   updatedAt: string;
 }
 
+export interface Recording {
+  id: string;
+  meetingId: string;
+  originalName: string;
+  mimeType: string;
+  kind: 'video' | 'audio';
+  sizeBytes: number;
+  /** `null` when the browser couldn't read it before upload. */
+  durationSeconds: number | null;
+  createdAt: string;
+  uploaderEmail: string;
+}
+
 export interface NewMeeting {
   title: string;
   date: string;
   participants: string[];
+}
+
+/** The Nest error message, or a non-empty fallback (statusText is empty over HTTP/2). */
+function errorMessage(data: unknown, status: number): string {
+  const message = (data as { message?: unknown } | null)?.message;
+  if (Array.isArray(message) && message.length) return message.join(', ');
+  if (typeof message === 'string' && message) return message;
+  return `Request failed (${status})`;
 }
 
 async function request<T>(
@@ -53,13 +74,7 @@ async function request<T>(
   const data: unknown = await response.json().catch(() => null);
 
   if (!response.ok) {
-    const message = (data as { message?: string | string[] } | null)?.message;
-    throw new ApiError(
-      response.status,
-      Array.isArray(message)
-        ? message.join(', ')
-        : (message ?? response.statusText),
-    );
+    throw new ApiError(response.status, errorMessage(data, response.status));
   }
 
   return data as T;
@@ -76,3 +91,74 @@ export const listMeetings = (token: string) =>
 
 export const createMeeting = (token: string, meeting: NewMeeting) =>
   request<Meeting>('POST', '/meetings', { body: meeting, token });
+
+/** `404` when the meeting doesn't exist or the user isn't its owner or invited. */
+export const getMeeting = (token: string, id: string) =>
+  request<Meeting>('GET', `/meetings/${encodeURIComponent(id)}`, { token });
+
+/** Newest first. `404` like `getMeeting`. */
+export const listRecordings = (token: string, meetingId: string) =>
+  request<Recording[]>(
+    'GET',
+    `/meetings/${encodeURIComponent(meetingId)}/recordings`,
+    { token },
+  );
+
+export const UPLOAD_FAILED_MESSAGE =
+  'Upload failed. Check your connection and try again.';
+
+/**
+ * Uploads with XMLHttpRequest, because `fetch` can't report upload progress.
+ * Rejects with an `AbortError` DOMException when `signal` aborts, and with
+ * `ApiError` otherwise (status 0 for a network failure).
+ */
+export function uploadRecording(
+  token: string,
+  meetingId: string,
+  file: File,
+  durationSeconds: number | undefined,
+  {
+    signal,
+    onProgress,
+  }: { signal: AbortSignal; onProgress: (fraction: number) => void },
+): Promise<Recording> {
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open(
+      'POST',
+      `${API_URL}/meetings/${encodeURIComponent(meetingId)}/recordings`,
+    );
+    xhr.setRequestHeader('Authorization', `Bearer ${token}`);
+    xhr.responseType = 'json';
+    xhr.upload.onprogress = (e) => {
+      if (e.lengthComputable) onProgress(e.loaded / e.total);
+    };
+    xhr.onload = () => {
+      // `responseType = 'json'` gives null for an empty or non-JSON body.
+      const data: unknown = xhr.response;
+      if (xhr.status >= 200 && xhr.status < 300) {
+        if (data && typeof data === 'object' && 'id' in data) {
+          resolve(data as Recording);
+        } else {
+          reject(
+            new ApiError(xhr.status, 'Unexpected response from the server.'),
+          );
+        }
+        return;
+      }
+      reject(new ApiError(xhr.status, errorMessage(data, xhr.status)));
+    };
+    xhr.onerror = () => reject(new ApiError(0, UPLOAD_FAILED_MESSAGE));
+    xhr.onabort = () =>
+      reject(new DOMException('Upload cancelled', 'AbortError'));
+    signal.addEventListener('abort', () => xhr.abort(), { once: true });
+
+    const body = new FormData();
+    if (durationSeconds !== undefined) {
+      body.append('durationSeconds', String(durationSeconds));
+    }
+    // Last, after the text fields, so the api has them before the file.
+    body.append('file', file);
+    xhr.send(body);
+  });
+}
