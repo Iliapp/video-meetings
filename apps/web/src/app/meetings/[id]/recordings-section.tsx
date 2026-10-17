@@ -2,15 +2,22 @@
 
 import {
   ArrowRotateRight,
+  ArrowUpFromLine,
   Clock,
   Headphones,
   HardDrive,
   Video,
 } from '@gravity-ui/icons';
 import { Alert, Button, Card, Chip, Skeleton } from '@heroui/react';
-import { useEffect, useState, type ReactNode } from 'react';
+import { useCallback, useEffect, useState, type ReactNode } from 'react';
 import { ApiError, listRecordings, type Recording } from '@/lib/api';
-import { formatBytes, formatDuration } from '@/lib/recordings';
+import { formatBytes, formatDuration, FORMATS_HINT } from '@/lib/recordings';
+import {
+  RecordingDropZone,
+  UploadButton,
+  UploadStatus,
+  useRecordingUpload,
+} from './recording-upload';
 
 type RecordingsState =
   | { status: 'loading' }
@@ -62,6 +69,21 @@ export function RecordingsSection({
     };
   }, [token, meetingId, onUnauthorized, reloadKey]);
 
+  const onUploaded = useCallback((recording: Recording) => {
+    setState((s) =>
+      s.status === 'ready'
+        ? { status: 'ready', recordings: [recording, ...s.recordings] }
+        : s,
+    );
+  }, []);
+  const upload = useRecordingUpload({
+    token,
+    meetingId,
+    onUploaded,
+    onUnauthorized,
+  });
+  const isUploading = upload.state.status === 'uploading';
+
   const recordings = state.status === 'ready' ? state.recordings : [];
 
   let content: ReactNode;
@@ -92,14 +114,39 @@ export function RecordingsSection({
       </div>
     );
   } else if (recordings.length === 0) {
-    content = <EmptyState isOwner={isOwner} />;
+    content = isOwner ? (
+      <div className="p-5 sm:p-6">
+        <RecordingDropZone onFile={upload.start} isDisabled={isUploading}>
+          <EmptyState isOwner />
+        </RecordingDropZone>
+      </div>
+    ) : (
+      <EmptyState isOwner={false} />
+    );
   } else {
     content = (
-      <ul aria-label="Recordings" className="divide-y divide-separator">
-        {recordings.map((recording) => (
-          <RecordingRow key={recording.id} recording={recording} />
-        ))}
-      </ul>
+      <>
+        {isOwner && (
+          <div className="px-5 pt-5 sm:px-6">
+            <RecordingDropZone
+              onFile={upload.start}
+              isDisabled={isUploading}
+              className="flex min-h-14 items-center justify-center gap-2 px-4 py-3 text-center text-sm text-muted"
+            >
+              <ArrowUpFromLine aria-hidden className="size-4 shrink-0" />
+              <span>
+                Drag and drop a recording here{' '}
+                <span className="max-sm:hidden">· {FORMATS_HINT}</span>
+              </span>
+            </RecordingDropZone>
+          </div>
+        )}
+        <ul aria-label="Recordings" className="divide-y divide-separator">
+          {recordings.map((recording) => (
+            <RecordingRow key={recording.id} recording={recording} />
+          ))}
+        </ul>
+      </>
     );
   }
 
@@ -114,7 +161,20 @@ export function RecordingsSection({
               : 'Video and audio from this meeting'}
           </Card.Description>
         </div>
+        {isOwner && (
+          <UploadButton onFile={upload.start} isDisabled={isUploading} />
+        )}
       </Card.Header>
+      {isOwner && upload.state.status !== 'idle' && (
+        <div className="border-b border-separator px-5 py-4 sm:px-6">
+          <UploadStatus
+            state={upload.state}
+            onCancel={upload.cancel}
+            onRetry={upload.retry}
+            onDismiss={upload.dismiss}
+          />
+        </div>
+      )}
       <Card.Content className="p-0">{content}</Card.Content>
     </Card>
   );
@@ -190,9 +250,10 @@ function EmptyState({ isOwner }: { isOwner: boolean }) {
       <p className="font-medium">No recordings yet</p>
       <p className="max-w-sm text-sm text-pretty text-muted">
         {isOwner
-          ? 'Upload a video or audio recording of this meeting to share it with participants.'
+          ? 'Drag and drop a video or audio file here, or use Upload recording. Participants will see it in this list.'
           : 'The host hasn’t uploaded any recordings of this meeting yet.'}
       </p>
+      {isOwner && <p className="text-xs text-muted">{FORMATS_HINT}</p>}
     </div>
   );
 }

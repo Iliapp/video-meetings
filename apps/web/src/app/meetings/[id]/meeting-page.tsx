@@ -158,7 +158,7 @@ function MeetingDetails({
         </p>
       </section>
 
-      <div className="grid items-start gap-6 lg:grid-cols-[minmax(0,1fr)_20rem]">
+      <div className="grid grid-cols-1 items-start gap-6 lg:grid-cols-[minmax(0,1fr)_20rem]">
         <RecordingsSection
           meetingId={meeting.id}
           token={session.token}
@@ -191,7 +191,7 @@ function Participants({
   ];
 
   return (
-    <Card className="gap-0 p-0">
+    <Card className="min-w-0 gap-0 p-0">
       <Card.Header className="border-b border-separator px-5 py-4">
         <h2 id="participants-heading" className="text-lg font-semibold">
           Participants
@@ -262,7 +262,7 @@ function MeetingSkeleton() {
         <Skeleton className="h-9 w-2/3 rounded-lg" />
         <Skeleton className="h-5 w-64 max-w-full rounded-md" />
       </div>
-      <div className="grid gap-6 lg:grid-cols-[minmax(0,1fr)_20rem]">
+      <div className="grid grid-cols-1 gap-6 lg:grid-cols-[minmax(0,1fr)_20rem]">
         <Skeleton className="h-72 rounded-3xl" />
         <Skeleton className="h-48 rounded-3xl" />
       </div>

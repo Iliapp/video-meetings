@@ -52,11 +52,13 @@ export default defineConfig({
       },
     },
     {
-      // A separate distDir, because Next locks `.next` for one `next dev`.
-      command: `pnpm exec next dev --port ${WEB_PORT}`,
+      // A production build: `next dev` compiles routes on first request,
+      // which is slow and flaky under parallel tests. A separate distDir lets
+      // it run next to `pnpm dev`.
+      command: `pnpm exec next build && pnpm exec next start --port ${WEB_PORT}`,
       url: WEB_URL,
       reuseExistingServer: !process.env.CI,
-      timeout: 120_000,
+      timeout: 300_000,
       env: {
         NEXT_DIST_DIR: '.next-e2e',
         NEXT_PUBLIC_API_URL: API_URL,

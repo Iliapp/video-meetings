@@ -26,6 +26,9 @@ const recordingItems = (page: Page) =>
 const uploadButton = (page: Page) =>
   page.getByRole('button', { name: 'Upload recording' });
 const fileInput = (page: Page) => page.locator('input[type="file"]');
+// Next.js adds its own role="alert" route announcer, so match the upload error.
+const uploadError = (page: Page) =>
+  page.getByRole('alert').filter({ hasText: "Couldn't upload" });
 
 async function openMeeting(page: Page, user: TestUser, meeting: TestMeeting) {
   await signIn(page, user);
@@ -70,7 +73,21 @@ async function dropFile(page: Page, name: string, type: string) {
   const dataTransfer = await page.evaluateHandle(
     ({ base64, name, type }) => {
       const bytes = Uint8Array.from(atob(base64), (c) => c.charCodeAt(0));
+      // React Aria reads dropped files through webkitGetAsEntry(), which
+      // Chrome only fills in for real drags from the OS; script-made files get
+      // null. Report them as plain files, as a real drag would.
+      const getAsEntry = DataTransferItem.prototype.webkitGetAsEntry;
+      DataTransferItem.prototype.webkitGetAsEntry = function () {
+        return (
+          getAsEntry.call(this) ??
+          (this.kind === 'file'
+            ? ({ isFile: true, isDirectory: false } as FileSystemEntry)
+            : null)
+        );
+      };
       const transfer = new DataTransfer();
+      // A real drag from the OS allows copying; a new DataTransfer allows nothing.
+      transfer.effectAllowed = 'all';
       transfer.items.add(new File([bytes], name, { type }));
       return transfer;
     },
@@ -267,7 +284,7 @@ test.describe('upload', () => {
       buffer: Buffer.from('not a recording'),
     });
 
-    await expect(page.getByRole('alert')).toContainText(UNSUPPORTED_FORMAT);
+    await expect(uploadError(page)).toContainText(UNSUPPORTED_FORMAT);
     await expect(page.getByText('No recordings yet')).toBeVisible();
     expect(await listRecordings(owner, meeting.id)).toEqual([]);
   });
@@ -287,9 +304,7 @@ test.describe('upload', () => {
       ]),
     });
 
-    await expect(page.getByRole('alert')).toContainText(
-      'File is larger than 64 KB',
-    );
+    await expect(uploadError(page)).toContainText('File is larger than 64 KB');
     expect(await listRecordings(owner, meeting.id)).toEqual([]);
   });
 
@@ -316,7 +331,7 @@ test.describe('upload', () => {
 
       await fileInput(page).setInputFiles(fixturePath('sample.mp3'));
 
-      await expect(page.getByRole('alert')).toContainText(UPLOAD_FAILED);
+      await expect(uploadError(page)).toContainText(UPLOAD_FAILED);
       await expect(page.getByText('No recordings yet')).toBeVisible();
       expect(await listRecordings(owner, meeting.id)).toEqual([]);
 
@@ -324,7 +339,7 @@ test.describe('upload', () => {
 
       await expect(recordingItems(page)).toHaveCount(1);
       await expect(recordingItems(page)).toContainText('sample.mp3');
-      await expect(page.getByRole('alert')).toHaveCount(0);
+      await expect(uploadError(page)).toHaveCount(0);
     });
   });
 });
