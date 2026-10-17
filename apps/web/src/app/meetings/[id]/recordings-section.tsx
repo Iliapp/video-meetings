@@ -126,8 +126,9 @@ export function RecordingsSection({
   } else {
     content = (
       <>
+        {/* Touch screens can't drag files in; they use the button. */}
         {isOwner && (
-          <div className="px-5 pt-5 sm:px-6">
+          <div className="px-5 pt-5 max-sm:hidden sm:px-6">
             <RecordingDropZone
               onFile={upload.start}
               isDisabled={isUploading}
@@ -229,12 +230,16 @@ function RecordingRow({ recording }: { recording: Recording }) {
             )}
           </span>
         </p>
-        <p className="text-sm break-words text-muted">
-          Uploaded{' '}
-          <time dateTime={recording.createdAt}>
-            {uploadedFormat.format(new Date(recording.createdAt))}
-          </time>{' '}
-          by <span className="break-all">{recording.uploaderEmail}</span>
+        <p className="flex min-w-0 flex-wrap gap-x-1 text-sm text-muted">
+          <span>
+            Uploaded{' '}
+            <time dateTime={recording.createdAt}>
+              {uploadedFormat.format(new Date(recording.createdAt))}
+            </time>
+          </span>
+          <span className="min-w-0 truncate" title={recording.uploaderEmail}>
+            by {recording.uploaderEmail}
+          </span>
         </p>
       </div>
     </li>
@@ -250,7 +255,7 @@ function EmptyState({ isOwner }: { isOwner: boolean }) {
       <p className="font-medium">No recordings yet</p>
       <p className="max-w-sm text-sm text-pretty text-muted">
         {isOwner
-          ? 'Drag and drop a video or audio file here, or use Upload recording. Participants will see it in this list.'
+          ? 'Use Upload recording, or drag and drop a video or audio file here. Participants will see it in this list.'
           : 'The host hasn’t uploaded any recordings of this meeting yet.'}
       </p>
       {isOwner && <p className="text-xs text-muted">{FORMATS_HINT}</p>}

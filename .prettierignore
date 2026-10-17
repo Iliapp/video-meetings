@@ -1,6 +1,10 @@
 node_modules
 dist
 .next
+.next-e2e
+.e2e
+test-results
+playwright-report
 out
 build
 coverage
