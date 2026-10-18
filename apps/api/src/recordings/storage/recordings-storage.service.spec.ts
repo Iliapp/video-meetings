@@ -19,7 +19,12 @@ describe('RecordingsStorageService', () => {
 
   beforeEach(() => {
     dir = mkdtempSync(join(tmpdir(), 'recordings-storage-'));
-    storage = new RecordingsStorageService({ dir, maxBytes: 1024 });
+    storage = new RecordingsStorageService({
+      dir,
+      maxBytes: 1024,
+      urlTtlSeconds: 60,
+      publicUrl: undefined,
+    });
   });
 
   afterEach(() => {

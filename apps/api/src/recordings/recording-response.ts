@@ -1,3 +1,4 @@
+import { NotFoundException } from '@nestjs/common';
 import { Prisma, RecordingKind } from '../generated/prisma/client';
 
 // What the api returns for a recording. The storage key stays internal.
@@ -43,3 +44,8 @@ export const toRecordingResponse = ({
   createdAt,
   uploaderEmail: uploader.email,
 });
+
+// Unknown, malformed, deleted or another meeting's recording, and every bad
+// signed token, look the same to the caller.
+export const recordingNotFound = () =>
+  new NotFoundException('Recording not found');

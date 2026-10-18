@@ -84,17 +84,17 @@
 **Affects:** backend
 **Tasks:**
 
-- [ ] Write the e2e tests first, then run them and confirm they fail.
+- [x] Write the e2e tests first, then run them and confirm they fail.
   - Signed URLs are issued to the owner and invited participants, and the request gets `404` for outsiders and unknown recordings.
   - The stream has the canonical MIME type and `nosniff`, and a Range request returns `206`.
   - The download is byte-identical to the upload and carries the original file name, including a non-ASCII one.
   - Missing, expired or invalid tokens get `404`, including on a Range request.
   - The owner can delete. Invited participants get `403` and outsiders `404`.
   - After a delete, the row and the file are gone, and links issued before it return `404`.
-- [ ] `GET /meetings/:id/recordings/:recordingId/urls` (Bearer, owner and invited) returns signed stream and download URLs that expire after `RECORDING_URL_TTL`. Everyone else, and unknown recordings, get `404`.
-- [ ] Stream endpoint: checks the signed token, serves the file with its stored MIME type, `nosniff` and HTTP Range support. Download endpoint: serves the original bytes with `Content-Disposition: attachment` and the original file name (`filename*`). A missing, expired or invalid token, or a deleted recording, gets `404`.
-- [ ] `DELETE /meetings/:id/recordings/:recordingId` (owner only) deletes the row first, then the file. If deleting the file fails, log it, and the recording is still gone for users.
-- [ ] Add unit tests for the new handlers and token signing. Update `apps/api/CLAUDE.md` with the new routes and `RECORDING_URL_TTL`, and `.env.example`. Run the Phase 3 e2e tests and confirm they now pass.
+- [x] `GET /meetings/:id/recordings/:recordingId/urls` (Bearer, owner and invited) returns signed stream and download URLs that expire after `RECORDING_URL_TTL`. Everyone else, and unknown recordings, get `404`.
+- [x] Stream endpoint: checks the signed token, serves the file with its stored MIME type, `nosniff` and HTTP Range support. Download endpoint: serves the original bytes with `Content-Disposition: attachment` and the original file name (`filename*`). A missing, expired or invalid token, or a deleted recording, gets `404`.
+- [x] `DELETE /meetings/:id/recordings/:recordingId` (owner only) deletes the row first, then the file. If deleting the file fails, log it, and the recording is still gone for users.
+- [x] Add unit tests for the new handlers and token signing. Update `apps/api/CLAUDE.md` with the new routes and `RECORDING_URL_TTL`, and `.env.example`. Run the Phase 3 e2e tests and confirm they now pass.
 
 **Done criteria:** All Phase 3 e2e tests that were red at the start now pass, along with the Phase 1 e2e tests. `pnpm lint`, `pnpm typecheck`, `pnpm test` and `pnpm test:e2e` pass.
 
