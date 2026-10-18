@@ -104,7 +104,7 @@ export function RecordingRow({
             </span>
           </p>
         </div>
-        <div className="flex shrink-0 items-center gap-1 max-sm:ml-15 sm:-mr-2">
+        <div className="flex shrink-0 items-center gap-1 max-sm:ml-12 sm:-mr-2">
           {isPlayerOpen ? (
             <RowAction
               label={`Close player for ${name}`}

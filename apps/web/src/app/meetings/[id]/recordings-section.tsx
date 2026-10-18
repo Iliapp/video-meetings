@@ -2,7 +2,13 @@
 
 import { ArrowRotateRight, ArrowUpFromLine, Video } from '@gravity-ui/icons';
 import { Alert, Button, Card, CloseButton, Skeleton } from '@heroui/react';
-import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
+import {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type ReactNode,
+} from 'react';
 import {
   ApiError,
   deleteRecording,
@@ -135,16 +141,19 @@ export function RecordingsSection({
   }, []);
 
   // Deleted elsewhere (or access lost): say so, drop it and reload the list.
-  const onGone = useCallback((recording: Recording) => {
-    removeFromList(recording.id);
-    setDeletion((d) => d && { ...d, isOpen: false, isPending: false });
-    setNotice({
-      status: 'warning',
-      title: 'This recording is no longer available',
-      description: `${recording.originalName} may have been deleted. The list has been refreshed.`,
-    });
-    setReloadKey((key) => key + 1);
-  }, [removeFromList]);
+  const onGone = useCallback(
+    (recording: Recording) => {
+      removeFromList(recording.id);
+      setDeletion((d) => d && { ...d, isOpen: false, isPending: false });
+      setNotice({
+        status: 'warning',
+        title: 'This recording is no longer available',
+        description: `${recording.originalName} may have been deleted. The list has been refreshed.`,
+      });
+      setReloadKey((key) => key + 1);
+    },
+    [removeFromList],
+  );
 
   /**
    * Signed URLs, or `null` after handling a `401` or a `404` (gone). Throws
@@ -200,14 +209,18 @@ export function RecordingsSection({
     }
   };
 
-
   const confirmDelete = async () => {
     if (!deletion) return;
     const { recording } = deletion;
     setDeletion({ ...deletion, isPending: true, error: null });
     try {
       await deleteRecording(token, meetingId, recording.id);
-      setDeletion({ ...deletion, isOpen: false, isPending: false, error: null });
+      setDeletion({
+        ...deletion,
+        isOpen: false,
+        isPending: false,
+        error: null,
+      });
       removeFromList(recording.id);
     } catch (e) {
       if (e instanceof ApiError && e.status === 401) {

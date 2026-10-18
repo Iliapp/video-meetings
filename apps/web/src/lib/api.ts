@@ -131,8 +131,7 @@ export const deleteRecording = (
   token: string,
   meetingId: string,
   recordingId: string,
-) =>
-  request<void>('DELETE', recordingPath(meetingId, recordingId), { token });
+) => request<void>('DELETE', recordingPath(meetingId, recordingId), { token });
 
 export const UPLOAD_FAILED_MESSAGE =
   'Upload failed. Check your connection and try again.';
