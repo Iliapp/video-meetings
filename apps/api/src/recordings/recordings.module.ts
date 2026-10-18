@@ -7,6 +7,8 @@ import { UploadRecordingHandler } from './commands/upload-recording/upload-recor
 import { MeetingOwnerGuard } from './meeting-owner.guard';
 import { GetRecordingUrlsHandler } from './queries/get-recording-urls/get-recording-urls.handler';
 import { ListRecordingsHandler } from './queries/list-recordings/list-recordings.handler';
+import { ResolveSignedRecordingHandler } from './queries/resolve-signed-recording/resolve-signed-recording.handler';
+import { RecordingFilesController } from './recording-files.controller';
 import {
   hasAllowedExtension,
   UNSUPPORTED_FORMAT_MESSAGE,
@@ -49,11 +51,12 @@ import { RecordingsStorageService } from './storage/recordings-storage.service';
       }),
     }),
   ],
-  controllers: [RecordingsController],
+  controllers: [RecordingsController, RecordingFilesController],
   providers: [
     UploadRecordingHandler,
     ListRecordingsHandler,
     GetRecordingUrlsHandler,
+    ResolveSignedRecordingHandler,
     RecordingUrlSigner,
     MeetingOwnerGuard,
     RecordingUploadInterceptor,

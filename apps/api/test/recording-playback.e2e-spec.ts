@@ -66,9 +66,13 @@ const withToken = (url: string, token: string | null) => {
   return parsed.toString();
 };
 
+// fetchFile() reads every body as a Buffer, the JSON error included.
 const expectRecordingNotFound = (res: Response) => {
   expect(res.status).toBe(404);
-  expect(res.body).toMatchObject({ message: 'Recording not found' });
+  const body: unknown = Buffer.isBuffer(res.body)
+    ? JSON.parse(res.body.toString())
+    : res.body;
+  expect(body).toMatchObject({ message: 'Recording not found' });
 };
 
 const sleep = (ms: number) => new Promise((done) => setTimeout(done, ms));
