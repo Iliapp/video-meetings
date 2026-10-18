@@ -276,13 +276,16 @@ function UploadProgress({
       <Button
         className="h-11 shrink-0"
         variant="secondary"
+        // Once every byte is sent the api saves the file anyway, so
+        // cancelling would no longer keep it out of the list.
+        isDisabled={isProcessing}
         onPress={() => setIsConfirming(true)}
       >
         <Xmark aria-hidden className="size-4" />
         Cancel upload
       </Button>
       <AlertDialog.Backdrop
-        isOpen={isConfirming}
+        isOpen={isConfirming && !isProcessing}
         onOpenChange={setIsConfirming}
       >
         <AlertDialog.Container>
