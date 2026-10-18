@@ -5,12 +5,14 @@ import { diskStorage } from 'multer';
 import { AuthModule } from '../auth/auth.module';
 import { UploadRecordingHandler } from './commands/upload-recording/upload-recording.handler';
 import { MeetingOwnerGuard } from './meeting-owner.guard';
+import { GetRecordingUrlsHandler } from './queries/get-recording-urls/get-recording-urls.handler';
 import { ListRecordingsHandler } from './queries/list-recordings/list-recordings.handler';
 import {
   hasAllowedExtension,
   UNSUPPORTED_FORMAT_MESSAGE,
 } from './recording-file';
 import { RecordingUploadInterceptor } from './recording-upload.interceptor';
+import { RecordingUrlSigner } from './recording-url-signer';
 import { recordingsConfig, type RecordingsConfig } from './recordings.config';
 import { RecordingsController } from './recordings.controller';
 import { RecordingsStorageModule } from './storage/recordings-storage.module';
@@ -51,6 +53,8 @@ import { RecordingsStorageService } from './storage/recordings-storage.service';
   providers: [
     UploadRecordingHandler,
     ListRecordingsHandler,
+    GetRecordingUrlsHandler,
+    RecordingUrlSigner,
     MeetingOwnerGuard,
     RecordingUploadInterceptor,
   ],
