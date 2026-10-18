@@ -3,6 +3,7 @@ import { Module, UnsupportedMediaTypeException } from '@nestjs/common';
 import { MulterModule } from '@nestjs/platform-express';
 import { diskStorage } from 'multer';
 import { AuthModule } from '../auth/auth.module';
+import { DeleteRecordingHandler } from './commands/delete-recording/delete-recording.handler';
 import { UploadRecordingHandler } from './commands/upload-recording/upload-recording.handler';
 import { MeetingOwnerGuard } from './meeting-owner.guard';
 import { GetRecordingUrlsHandler } from './queries/get-recording-urls/get-recording-urls.handler';
@@ -54,6 +55,7 @@ import { RecordingsStorageService } from './storage/recordings-storage.service';
   controllers: [RecordingsController, RecordingFilesController],
   providers: [
     UploadRecordingHandler,
+    DeleteRecordingHandler,
     ListRecordingsHandler,
     GetRecordingUrlsHandler,
     ResolveSignedRecordingHandler,

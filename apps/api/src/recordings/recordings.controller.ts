@@ -1,7 +1,10 @@
 import {
   Body,
   Controller,
+  Delete,
   Get,
+  HttpCode,
+  HttpStatus,
   Param,
   ParseFilePipe,
   Post,
@@ -18,6 +21,7 @@ import type { AuthUser } from '../auth/auth-user';
 import { CurrentUser } from '../auth/current-user.decorator';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { CloseConnectionOnErrorFilter } from './close-connection-on-error.filter';
+import { DeleteRecordingCommand } from './commands/delete-recording/delete-recording.command';
 import { UploadRecordingCommand } from './commands/upload-recording/upload-recording.command';
 import { UploadRecordingDto } from './dto/upload-recording.dto';
 import { MeetingOwnerGuard } from './meeting-owner.guard';
@@ -83,6 +87,19 @@ export class RecordingsController {
         recordingId,
         `${request.protocol}://${request.get('host')}`,
       ),
+    );
+  }
+
+  // Owner only: MeetingOwnerGuard answers 403 to invited participants.
+  @Delete(':recordingId')
+  @UseGuards(MeetingOwnerGuard)
+  @HttpCode(HttpStatus.NO_CONTENT)
+  remove(
+    @Param('id') meetingId: string,
+    @Param('recordingId') recordingId: string,
+  ): Promise<void> {
+    return this.commandBus.execute(
+      new DeleteRecordingCommand(meetingId, recordingId),
     );
   }
 }
