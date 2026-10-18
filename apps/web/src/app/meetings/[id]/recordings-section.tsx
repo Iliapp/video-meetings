@@ -113,10 +113,43 @@ export function RecordingsSection({
     action: 'play' | 'download';
   } | null>(null);
   const [notice, setNotice] = useState<Notice | null>(null);
+  const [deletion, setDeletion] = useState<{
+    recording: Recording;
+    isOpen: boolean;
+    isPending: boolean;
+    error: string | null;
+  } | null>(null);
   // Only the latest Play/Download press acts on its response.
   const actionId = useRef(0);
 
-  /** Signed URLs, or `null` after handling a `401`. Throws other errors. */
+  const removeFromList = useCallback((recordingId: string) => {
+    setState((s) =>
+      s.status === 'ready'
+        ? {
+            status: 'ready',
+            recordings: s.recordings.filter((r) => r.id !== recordingId),
+          }
+        : s,
+    );
+    setPlayer((p) => (p?.recordingId === recordingId ? null : p));
+  }, []);
+
+  // Deleted elsewhere (or access lost): say so, drop it and reload the list.
+  const onGone = useCallback((recording: Recording) => {
+    removeFromList(recording.id);
+    setDeletion((d) => d && { ...d, isOpen: false, isPending: false });
+    setNotice({
+      status: 'warning',
+      title: 'This recording is no longer available',
+      description: `${recording.originalName} may have been deleted. The list has been refreshed.`,
+    });
+    setReloadKey((key) => key + 1);
+  }, [removeFromList]);
+
+  /**
+   * Signed URLs, or `null` after handling a `401` or a `404` (gone). Throws
+   * other errors.
+   */
   const fetchUrls = useCallback(
     async (recording: Recording) => {
       try {
@@ -126,10 +159,14 @@ export function RecordingsSection({
           onUnauthorized();
           return null;
         }
+        if (e instanceof ApiError && e.status === 404) {
+          onGone(recording);
+          return null;
+        }
         throw e;
       }
     },
-    [token, meetingId, onUnauthorized],
+    [token, meetingId, onUnauthorized, onGone],
   );
 
   const runAction = async (
@@ -163,24 +200,6 @@ export function RecordingsSection({
     }
   };
 
-  const [deletion, setDeletion] = useState<{
-    recording: Recording;
-    isOpen: boolean;
-    isPending: boolean;
-    error: string | null;
-  } | null>(null);
-
-  const removeFromList = (recordingId: string) => {
-    setState((s) =>
-      s.status === 'ready'
-        ? {
-            status: 'ready',
-            recordings: s.recordings.filter((r) => r.id !== recordingId),
-          }
-        : s,
-    );
-    setPlayer((p) => (p?.recordingId === recordingId ? null : p));
-  };
 
   const confirmDelete = async () => {
     if (!deletion) return;
@@ -193,6 +212,10 @@ export function RecordingsSection({
     } catch (e) {
       if (e instanceof ApiError && e.status === 401) {
         onUnauthorized();
+        return;
+      }
+      if (e instanceof ApiError && e.status === 404) {
+        onGone(recording);
         return;
       }
       setDeletion({
