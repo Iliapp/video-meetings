@@ -54,7 +54,7 @@
 **Affects:** frontend
 **Tasks:**
 
-- [ ] Set up Playwright Test in `apps/web`: config with `webServer` (test database, temp `RECORDINGS_DIR`, lowered size limits) and a `test:e2e` script. Write the e2e tests first, then run them and confirm they fail.
+- [x] Set up Playwright Test in `apps/web`: config with `webServer` (test database, temp `RECORDINGS_DIR`, lowered size limits) and a `test:e2e` script. Write the e2e tests first, then run them and confirm they fail.
   - Open the meeting from the dashboard and see its title, date, participants and Recordings section.
   - Empty state, with an upload action for the owner only.
   - Upload by file picker and by drag-and-drop.
@@ -67,14 +67,14 @@
   - The outsider sees "not found".
   - No horizontal scroll at 375, 1440 and 1920 px.
   - No console errors.
-- [ ] Add a `/meetings/[id]` page that shows title, date, participants and a "Recordings" section, with a "not found" state for `404`. Dashboard meetings link to it. Add typed functions in `src/lib/api.ts`.
-- [ ] Recordings list: newest first, with name, type, size, duration ("—" when unknown), upload date and uploader. Show an empty state when there are none, with an upload action for the owner only.
-- [ ] Upload control, owner only.
+- [x] Add a `/meetings/[id]` page that shows title, date, participants and a "Recordings" section, with a "not found" state for `404`. Dashboard meetings link to it. Add typed functions in `src/lib/api.ts`.
+- [x] Recordings list: newest first, with name, type, size, duration ("—" when unknown), upload date and uploader. Show an empty state when there are none, with an upload action for the owner only.
+- [x] Upload control, owner only.
   - File picker plus drag-and-drop.
   - Check format and size (`NEXT_PUBLIC_RECORDINGS_MAX_BYTES`) before starting.
   - Read the duration from the file's media metadata, and leave it unset when it isn't finite.
   - Upload with progress (XHR), cancel and retry, then add the result to the list without a reload.
-- [ ] Update `apps/web/CLAUDE.md` (Structure, env, the `test:e2e` command and its setup) and the root `CLAUDE.md` (web now has e2e tests), plus `.env.example`. Run the `ui-ux-pro-max` review and take Playwright MCP screenshots at 375, 1440 and 1920 px. Run the Phase 2 e2e tests and confirm they now pass.
+- [x] Update `apps/web/CLAUDE.md` (Structure, env, the `test:e2e` command and its setup) and the root `CLAUDE.md` (web now has e2e tests), plus `.env.example`. Run the `ui-ux-pro-max` review and take Playwright MCP screenshots at 375, 1440 and 1920 px. Run the Phase 2 e2e tests and confirm they now pass.
 
 **Done criteria:** All Phase 2 web e2e tests that were red at the start now pass. The Phase 1 api e2e tests still pass. `pnpm lint`, `pnpm typecheck`, `pnpm test` and `pnpm build` pass.
 
