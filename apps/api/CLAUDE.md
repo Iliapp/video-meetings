@@ -13,7 +13,7 @@ Copy `.env.example` to `.env` (loaded by `@nestjs/config` and `prisma.config.ts`
 - `RECORDINGS_DIR`: where uploaded recordings are stored, default `recordings` (relative to the api's working directory, gitignored). Keep it on a persistent, backed-up volume; one api instance per directory.
 - `RECORDINGS_MAX_BYTES`: upload size limit in bytes, default `2147483648` (2 GB). Must be a positive integer, or the app won't start.
 - `RECORDING_URL_TTL`: lifetime of signed stream/download URLs, default `6h`. Seconds (`90`) or `30s`/`15m`/`6h`/`1d`; anything else stops the app from starting.
-- `API_PUBLIC_URL`: optional public base of the api (e.g. `https://api.example.com`, a path prefix is kept) used in signed URLs. Unset → the origin of the request that asks for them.
+- `API_PUBLIC_URL`: public base of the api used in signed URLs (e.g. `https://api.example.com`, a path prefix is kept; must be http(s), or the app won't start). Unset → the protocol and `Host` of the request that asks for them, which is only right when browsers reach the api directly. **Set it whenever the api runs behind a proxy or TLS terminator**, or the URLs come out as the proxy's `http://` upstream.
 
 ## Commands (run in `apps/api`, or `pnpm --filter api <script>` from root)
 
@@ -37,7 +37,7 @@ Run both suites from `apps/api` (or `pnpm --filter api test` / `pnpm --filter ap
 
 1. `pnpm db:up` (from root): e2e needs Postgres on `localhost:5432`. Unit tests don't.
 2. `pnpm test`: unit specs (`src/**/*.spec.ts`), with Prisma, buses and services mocked through `Test.createTestingModule` providers.
-3. `pnpm test:e2e`: boots the full `AppModule` and calls it over HTTP with supertest. `test/setup-env.ts` points `DATABASE_URL` at `video_meetings_test` (or `TEST_DATABASE_URL`), defaults `JWT_SECRET`, gives each test file a temp `RECORDINGS_DIR` and lowers `RECORDINGS_MAX_BYTES` to 32 KB, so no `.env` is needed. `recording-playback.e2e-spec.ts` restarts the app with `RECORDING_URL_TTL=1s` to test expiry. Small media fixtures live in `test/fixtures/` (made with ffmpeg; `no-duration.webm` has no duration, like a `MediaRecorder` file). `test/global-setup.ts` runs `prisma migrate deploy` first.
+3. `pnpm test:e2e`: boots the full `AppModule` and calls it over HTTP with supertest. `test/setup-env.ts` points `DATABASE_URL` at `video_meetings_test` (or `TEST_DATABASE_URL`), defaults `JWT_SECRET`, gives each test file a temp `RECORDINGS_DIR` and lowers `RECORDINGS_MAX_BYTES` to 32 KB, so no `.env` is needed. `recording-playback.e2e-spec.ts` restarts the app with `RECORDING_URL_TTL=2s` to test expiry. Small media fixtures live in `test/fixtures/` (made with ffmpeg; `no-duration.webm` has no duration, like a `MediaRecorder` file). `test/global-setup.ts` runs `prisma migrate deploy` first.
 
 Run a single file with `pnpm test -- <path or pattern>` (same for `test:e2e`). Also run `pnpm lint`, `pnpm typecheck` and `pnpm build`; Jest doesn't type-check the whole project.
 

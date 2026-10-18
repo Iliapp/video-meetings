@@ -56,6 +56,7 @@ export class GetRecordingUrlsHandler implements IQueryHandler<GetRecordingUrlsQu
     };
     const stream = urlFor('stream');
     const download = urlFor('download');
+    // Both are signed with the same `now`, so they expire together.
     return {
       streamUrl: stream.url,
       downloadUrl: download.url,

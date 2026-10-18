@@ -6,6 +6,7 @@ import { recordingNotFound } from './recording-response';
 import { RecordingUrlPurpose } from './recording-url-signer';
 
 interface SendError extends Error {
+  code?: string;
   status?: number;
   headers?: Record<string, string>;
 }
@@ -77,9 +78,14 @@ export class RecordingFilesController {
   }
 
   // `send` reports 416 and a missing file through this callback instead of
-  // answering itself. An error after the headers went out is a client abort.
+  // answering itself. A client abort (common while seeking) is not an error.
   private onSendError(err: SendError | undefined, res: Response): void {
-    if (!err || res.headersSent) {
+    if (
+      !err ||
+      res.headersSent ||
+      res.destroyed ||
+      err.code === 'ECONNABORTED'
+    ) {
       return;
     }
     const status = err.status ?? 500;

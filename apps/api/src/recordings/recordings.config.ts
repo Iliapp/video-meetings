@@ -34,16 +34,32 @@ export const parseUrlTtl = (value: string | undefined): number => {
   return seconds;
 };
 
-// Read once at startup; a bad RECORDINGS_MAX_BYTES or RECORDING_URL_TTL stops
-// the app from booting.
+// Base of the signed URLs, e.g. https://api.example.com (a path prefix is
+// kept). Unset → taken from the request that asks for them, which is only
+// right when clients reach the api directly.
+export const parsePublicUrl = (
+  value: string | undefined,
+): string | undefined => {
+  if (!value) {
+    return undefined;
+  }
+  const url = URL.parse(value);
+  if (!url || !['http:', 'https:'].includes(url.protocol) || url.search) {
+    throw new Error(
+      `API_PUBLIC_URL must be an http(s) URL like "https://api.example.com", got "${value}"`,
+    );
+  }
+  return `${url.origin}${url.pathname}`.replace(/\/+$/, '');
+};
+
+// Read once at startup; a bad RECORDINGS_MAX_BYTES, RECORDING_URL_TTL or
+// API_PUBLIC_URL stops the app from booting.
 export const recordingsConfig = registerAs('recordings', () => ({
   // Relative paths resolve against the api's working directory.
   dir: resolve(process.env.RECORDINGS_DIR || 'recordings'),
   maxBytes: parseMaxBytes(process.env.RECORDINGS_MAX_BYTES),
   urlTtlSeconds: parseUrlTtl(process.env.RECORDING_URL_TTL),
-  // Base of the signed URLs, e.g. https://api.example.com. Unset → taken from
-  // the request that asks for them.
-  publicUrl: process.env.API_PUBLIC_URL?.replace(/\/+$/, '') || undefined,
+  publicUrl: parsePublicUrl(process.env.API_PUBLIC_URL),
 }));
 
 export type RecordingsConfig = ConfigType<typeof recordingsConfig>;

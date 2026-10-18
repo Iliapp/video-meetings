@@ -39,7 +39,8 @@ export class RecordingUrlSigner {
     purpose: RecordingUrlPurpose,
     now = Date.now(),
   ): SignedRecordingToken {
-    const exp = Math.floor(now / 1000) + this.recordings.urlTtlSeconds;
+    // Rounded up, so a URL is valid for at least the whole TTL.
+    const exp = Math.ceil(now / 1000) + this.recordings.urlTtlSeconds;
     const payload = Buffer.from(`${recordingId}.${purpose}.${exp}`).toString(
       'base64url',
     );

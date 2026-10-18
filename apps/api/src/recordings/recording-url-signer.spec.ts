@@ -17,6 +17,16 @@ describe('RecordingUrlSigner', () => {
     expect(signer.verify(token, recordingId, 'stream', now)).toBe(true);
   });
 
+  it('keeps the token valid for at least the whole TTL', () => {
+    const issuedAt = now + 999;
+    const { token, expiresAt } = signer.sign(recordingId, 'stream', issuedAt);
+
+    expect(expiresAt.getTime()).toBeGreaterThanOrEqual(issuedAt + 3600 * 1000);
+    expect(
+      signer.verify(token, recordingId, 'stream', issuedAt + 3600 * 1000 - 1),
+    ).toBe(true);
+  });
+
   it('rejects the token once it has expired', () => {
     const { token, expiresAt } = signer.sign(recordingId, 'stream', now);
 

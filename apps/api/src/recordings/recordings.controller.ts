@@ -73,6 +73,8 @@ export class RecordingsController {
   }
 
   // Signed stream and download URLs, for the owner and invited participants.
+  // Behind a proxy, set API_PUBLIC_URL: request.protocol and Host are what the
+  // proxy sent, not what the browser used.
   @Get(':recordingId/urls')
   urls(
     @CurrentUser() user: AuthUser,

@@ -1,5 +1,11 @@
 import { randomUUID } from 'node:crypto';
-import { existsSync, readdirSync, readFileSync, rmSync } from 'node:fs';
+import {
+  existsSync,
+  readdirSync,
+  readFileSync,
+  rmSync,
+  statSync,
+} from 'node:fs';
 import { join } from 'node:path';
 import { Test } from '@nestjs/testing';
 import { INestApplication } from '@nestjs/common';
@@ -294,6 +300,23 @@ describe('Recording playback, download and delete (e2e)', () => {
       expect(res.body).toEqual(buffer.subarray(1000));
     });
 
+    it('returns 404 when the file is missing from disk', async () => {
+      const { owner, meetingId, recording } = await setup();
+      const { streamUrl } = await urlsFor(owner, meetingId, recording.id);
+      const before = storedFiles();
+      await fetchFile(streamUrl).expect(200);
+      // The newest file is this recording's; other tests' files stay.
+      const file = before
+        .map((name) => ({
+          name,
+          mtime: statSync(join(RECORDINGS_DIR, name)).mtimeMs,
+        }))
+        .sort((a, b) => b.mtime - a.mtime)[0].name;
+      rmSync(join(RECORDINGS_DIR, file));
+
+      expectRecordingNotFound(await fetchFile(streamUrl));
+    });
+
     it('answers 416 for a range past the end of the file', async () => {
       const { owner, meetingId, recording } = await setup();
       const { streamUrl } = await urlsFor(owner, meetingId, recording.id);
@@ -411,7 +434,7 @@ describe('Recording playback, download and delete (e2e)', () => {
 
       beforeAll(async () => {
         await app.close();
-        process.env.RECORDING_URL_TTL = '1s';
+        process.env.RECORDING_URL_TTL = '2s';
         await startApp();
       });
 
