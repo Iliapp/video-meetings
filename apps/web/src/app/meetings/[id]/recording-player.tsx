@@ -75,6 +75,9 @@ export function RecordingPlayer({
     preload: 'metadata',
     'aria-label': `${recording.originalName} player`,
     onTimeUpdate,
+    // `seeking` already has the target, even if the seek then fails on an
+    // expired URL before `seeked`.
+    onSeeking: onTimeUpdate,
     onSeeked: onTimeUpdate,
     onLoadedMetadata,
     onCanPlay: () => {

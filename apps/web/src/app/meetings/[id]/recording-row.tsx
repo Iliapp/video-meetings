@@ -32,7 +32,7 @@ export function RecordingRow({
 }: {
   recording: Recording;
   isPlayerOpen: boolean;
-  /** The action waiting for its signed URL. */
+  /** The action waiting for its signed URL (Play wins if both are). */
   pendingAction: 'play' | 'download' | null;
   onPlay: () => void;
   onClosePlayer: () => void;

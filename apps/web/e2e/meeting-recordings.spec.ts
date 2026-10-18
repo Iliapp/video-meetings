@@ -43,7 +43,10 @@ const downloadButton = (page: Page, name: string) =>
   page.getByRole('button', { name: `Download ${name}` });
 const deleteButton = (page: Page, name: string) =>
   page.getByRole('button', { name: `Delete ${name}` });
-const deleteDialog = (page: Page) => page.getByRole('alertdialog');
+const deleteDialog = (page: Page) =>
+  page.getByRole('alertdialog', { name: 'Delete recording?' });
+const cancelDialog = (page: Page) =>
+  page.getByRole('alertdialog', { name: 'Cancel upload?' });
 const player = (page: Page, name: string, kind: 'video' | 'audio') =>
   recordingRow(page, name).locator(kind);
 // Next.js adds its own role="alert" route announcer, so match by text.
@@ -110,6 +113,17 @@ async function dropFile(page: Page, name: string, type: string) {
   await zone.dispatchEvent('dragenter', { dataTransfer });
   await zone.dispatchEvent('dragover', { dataTransfer });
   await zone.dispatchEvent('drop', { dataTransfer });
+}
+
+/**
+ * Makes the browser ask for the file again with the expired token (→ 404), as
+ * when seeking past the buffer of a long recording. Chrome reuses a loaded
+ * resource for the same URL, so add a parameter.
+ */
+async function requestAgainWithExpiredUrl(media: Locator) {
+  await media.evaluate((el: HTMLMediaElement) => {
+    el.src = `${el.src}&reload=1`;
+  });
 }
 
 /** Waits until the element has played some of the file without an error. */
@@ -302,7 +316,9 @@ test.describe('upload', () => {
     await expect(recordingItems(page)).toContainText('sample.wav');
   });
 
-  test('cancel adds nothing to the list', async ({ page }) => {
+  test('cancel asks to confirm, then adds nothing to the list', async ({
+    page,
+  }) => {
     const owner = await signUp();
     const meeting = await createMeeting(owner);
     await openMeeting(page, owner, meeting);
@@ -311,12 +327,35 @@ test.describe('upload', () => {
     await fileInput(page).setInputFiles(fixturePath('sample.wav'));
     await expect(page.getByRole('progressbar')).toBeVisible();
     await page.getByRole('button', { name: 'Cancel upload' }).click();
+    const dialog = cancelDialog(page);
+    await expect(dialog).toContainText('sample.wav');
+    await dialog.getByRole('button', { name: 'Cancel upload' }).click();
     upload.release();
 
     await expect(page.getByRole('progressbar')).toHaveCount(0);
     await expect(page.getByText('No recordings yet')).toBeVisible();
     await expect(recordingsList(page)).toHaveCount(0);
     expect(await listRecordings(owner, meeting.id)).toEqual([]);
+  });
+
+  test('keep uploading closes the confirmation and finishes the upload', async ({
+    page,
+  }) => {
+    const owner = await signUp();
+    const meeting = await createMeeting(owner);
+    await openMeeting(page, owner, meeting);
+    const upload = await holdUpload(page, meeting);
+
+    await fileInput(page).setInputFiles(fixturePath('sample.wav'));
+    await page.getByRole('button', { name: 'Cancel upload' }).click();
+    await cancelDialog(page)
+      .getByRole('button', { name: 'Keep uploading' })
+      .click();
+    await expect(cancelDialog(page)).toHaveCount(0);
+    upload.release();
+
+    await expect(recordingItems(page)).toHaveCount(1);
+    await expect(recordingItems(page)).toContainText('sample.wav');
   });
 
   test('names the reason for an unsupported format', async ({ page }) => {
@@ -450,7 +489,7 @@ test.describe('play and download', () => {
   test.describe(() => {
     test.use({ allowConsoleErrors: [/status of 404/] });
 
-    test('keeps playing from the same position after the URL expires', async ({
+    test('a paused player resumes at the same position after the URL expires', async ({
       page,
     }) => {
       const { owner, meeting } = await setupMeeting();
@@ -468,12 +507,7 @@ test.describe('play and download', () => {
       const oldSrc = await video.evaluate((el: HTMLMediaElement) => el.src);
 
       await page.waitForTimeout((RECORDING_URL_TTL_SECONDS + 1) * 1000);
-      // The browser asks for the file again with the expired token → 404, as
-      // when seeking past the buffer of a long recording. Chrome reuses a
-      // loaded resource for the same URL, so add a parameter.
-      await video.evaluate((el: HTMLMediaElement) => {
-        el.src = `${el.src}&reload=1`;
-      });
+      await requestAgainWithExpiredUrl(video);
 
       await expect
         .poll(() =>
@@ -482,12 +516,65 @@ test.describe('play and download', () => {
               error: el.error?.code ?? null,
               ready: el.readyState >= HTMLMediaElement.HAVE_METADATA,
               newSrc: el.src !== '' && el.src !== oldSrc,
+              paused: el.paused,
               position: Math.round(el.currentTime * 10) / 10,
             }),
             oldSrc,
           ),
         )
-        .toEqual({ error: null, ready: true, newSrc: true, position: 0.5 });
+        .toEqual({
+          error: null,
+          ready: true,
+          newSrc: true,
+          paused: true,
+          position: 0.5,
+        });
+      await expect(alertWith(page, GONE)).toHaveCount(0);
+    });
+
+    test('a playing player keeps playing after the URL expires', async ({
+      page,
+    }) => {
+      const { owner, meeting } = await setupMeeting();
+      await openMeeting(page, owner, meeting);
+      await playButton(page, 'sample.mp4').click();
+      const video = player(page, 'sample.mp4', 'video');
+      await expectPlaying(video);
+      // The fixture is 1 s long; loop it so it is still playing at expiry.
+      await video.evaluate((el: HTMLMediaElement) => {
+        el.loop = true;
+        return el.play();
+      });
+      const oldSrc = await video.evaluate((el: HTMLMediaElement) => el.src);
+
+      await page.waitForTimeout((RECORDING_URL_TTL_SECONDS + 1) * 1000);
+      await requestAgainWithExpiredUrl(video);
+
+      await expect
+        .poll(() =>
+          video.evaluate(
+            (el: HTMLMediaElement, oldSrc) => ({
+              error: el.error?.code ?? null,
+              newSrc: el.src !== '' && el.src !== oldSrc,
+              playing: !el.paused && el.readyState >= 3,
+            }),
+            oldSrc,
+          ),
+        )
+        .toEqual({ error: null, newSrc: true, playing: true });
+      // And the position moves on.
+      const before = await video.evaluate(
+        (el: HTMLMediaElement) => el.currentTime,
+      );
+      await expect
+        .poll(() =>
+          video.evaluate(
+            (el: HTMLMediaElement, before) =>
+              !el.paused && el.currentTime !== before,
+            before,
+          ),
+        )
+        .toBe(true);
       await expect(alertWith(page, GONE)).toHaveCount(0);
     });
   });
@@ -502,9 +589,13 @@ test.describe('delete', () => {
     request,
   }) => {
     const { owner, guest, meeting, mp4 } = await setupMeeting();
-    const urls = await getRecordingUrls(owner, meeting.id, mp4.id);
     await openMeeting(page, owner, meeting);
     await expect(recordingItems(page)).toHaveCount(2);
+    // Fresh links that work right before the delete, so a 404 after it
+    // can't come from expiry.
+    const urls = await getRecordingUrls(owner, meeting.id, mp4.id);
+    expect((await request.head(urls.streamUrl)).status()).toBe(200);
+    expect((await request.head(urls.downloadUrl)).status()).toBe(200);
 
     await deleteButton(page, 'sample.mp4').click();
     const dialog = deleteDialog(page);
@@ -512,17 +603,18 @@ test.describe('delete', () => {
     await dialog.getByRole('button', { name: 'Delete' }).click();
 
     await expect(dialog).toHaveCount(0);
+    await expect(page.getByRole('status')).toContainText('Recording deleted');
     await expect(recordingItems(page)).toHaveCount(1);
     await expect(recordingRow(page, 'sample.mp4')).toHaveCount(0);
     await expect(recordingItems(page)).toContainText('sample.mp3');
+
+    expect((await request.get(urls.streamUrl)).status()).toBe(404);
+    expect((await request.get(urls.downloadUrl)).status()).toBe(404);
 
     const guestView = await guestPage(browser, guest, meeting);
     await expect(recordingItems(guestView)).toHaveCount(1);
     await expect(recordingRow(guestView, 'sample.mp4')).toHaveCount(0);
     await guestView.context().close();
-
-    expect((await request.get(urls.streamUrl)).status()).toBe(404);
-    expect((await request.get(urls.downloadUrl)).status()).toBe(404);
   });
 
   test('cancelled delete keeps the recording', async ({ page }) => {
@@ -592,6 +684,27 @@ test.describe('a recording that was already deleted', () => {
       await expect(recordingRow(page, 'sample.mp4')).toHaveCount(0);
     });
   }
+  test('stays on the page when the download link itself returns 404', async ({
+    page,
+  }) => {
+    const { owner, meeting } = await setupMeeting();
+    await openMeeting(page, owner, meeting);
+    // The urls request works, but the file is gone (e.g. deleted in between).
+    await page.route(/\/recordings\/[^/]+\/download\?/, (route) =>
+      route.fulfill({
+        status: 404,
+        headers: { 'access-control-allow-origin': '*' },
+        json: { message: 'Recording not found' },
+      }),
+    );
+    await markWindow(page);
+
+    await downloadButton(page, 'sample.mp4').click();
+
+    await expect(alertWith(page, GONE)).toBeVisible();
+    await expectSameWindow(page);
+    await expect(page).toHaveURL(`/meetings/${meeting.id}`);
+  });
 });
 
 test.describe('layout', () => {

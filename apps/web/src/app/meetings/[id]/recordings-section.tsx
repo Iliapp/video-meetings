@@ -33,7 +33,7 @@ type RecordingsState =
   | { status: 'ready'; recordings: Recording[] };
 
 interface Notice {
-  status: 'warning' | 'danger';
+  status: 'success' | 'warning' | 'danger';
   title: string;
   description: string;
 }
@@ -69,10 +69,7 @@ export function RecordingsSection({
         } else {
           setState({
             status: 'error',
-            message:
-              e instanceof ApiError
-                ? e.message
-                : 'Failed to connect to the server.',
+            message: errorText(e),
           });
         }
       },
@@ -114,10 +111,11 @@ export function RecordingsSection({
     recordingId: string;
     streamUrl: string;
   } | null>(null);
-  const [pending, setPending] = useState<{
-    recordingId: string;
-    action: 'play' | 'download';
-  } | null>(null);
+  const [pendingPlay, setPendingPlay] = useState<string | null>(null);
+  // Downloads aren't superseded by later presses, so track each one.
+  const [pendingDownloads, setPendingDownloads] = useState<ReadonlySet<string>>(
+    new Set(),
+  );
   const [notice, setNotice] = useState<Notice | null>(null);
   const [deletion, setDeletion] = useState<{
     recording: Recording;
@@ -125,8 +123,8 @@ export function RecordingsSection({
     isPending: boolean;
     error: string | null;
   } | null>(null);
-  // Only the latest Play/Download press acts on its response.
-  const actionId = useRef(0);
+  // Only the latest Play press opens a player.
+  const playId = useRef(0);
 
   const removeFromList = useCallback((recordingId: string) => {
     setState((s) =>
@@ -178,34 +176,59 @@ export function RecordingsSection({
     [token, meetingId, onUnauthorized, onGone],
   );
 
-  const runAction = async (
-    recording: Recording,
-    action: 'play' | 'download',
-  ) => {
-    const id = ++actionId.current;
-    setPending({ recordingId: recording.id, action });
+  const play = async (recording: Recording) => {
+    const id = ++playId.current;
+    setPendingPlay(recording.id);
     setNotice(null);
     try {
       const urls = await fetchUrls(recording);
-      if (id !== actionId.current || !urls) return;
-      if (action === 'play') {
+      if (id === playId.current && urls) {
         setPlayer({ recordingId: recording.id, streamUrl: urls.streamUrl });
-      } else {
-        // Content-Disposition: attachment, so the page stays.
-        const link = document.createElement('a');
-        link.href = urls.downloadUrl;
-        link.rel = 'noopener';
-        link.click();
       }
     } catch (e) {
-      if (id !== actionId.current) return;
+      if (id !== playId.current) return;
       setNotice({
         status: 'danger',
-        title: `Couldn't ${action} ${recording.originalName}`,
+        title: `Couldn't play ${recording.originalName}`,
         description: errorText(e),
       });
     } finally {
-      if (id === actionId.current) setPending(null);
+      if (id === playId.current) setPendingPlay(null);
+    }
+  };
+
+  const download = async (recording: Recording) => {
+    setPendingDownloads((ids) => new Set(ids).add(recording.id));
+    setNotice(null);
+    try {
+      const urls = await fetchUrls(recording);
+      if (!urls) return;
+      // A link to a non-attachment response (a 404's JSON) would replace the
+      // app, so check the file first.
+      const probe = await fetch(urls.downloadUrl, { method: 'HEAD' });
+      if (probe.status === 404) {
+        onGone(recording);
+        return;
+      }
+      if (!probe.ok) {
+        throw new ApiError(probe.status, `Request failed (${probe.status})`);
+      }
+      // Content-Disposition: attachment, so the page stays.
+      const link = document.createElement('a');
+      link.href = urls.downloadUrl;
+      link.click();
+    } catch (e) {
+      setNotice({
+        status: 'danger',
+        title: `Couldn't download ${recording.originalName}`,
+        description: errorText(e),
+      });
+    } finally {
+      setPendingDownloads((ids) => {
+        const next = new Set(ids);
+        next.delete(recording.id);
+        return next;
+      });
     }
   };
 
@@ -222,6 +245,11 @@ export function RecordingsSection({
         error: null,
       });
       removeFromList(recording.id);
+      setNotice({
+        status: 'success',
+        title: 'Recording deleted',
+        description: `${recording.originalName} was deleted for everyone in this meeting.`,
+      });
     } catch (e) {
       if (e instanceof ApiError && e.status === 401) {
         onUnauthorized();
@@ -307,11 +335,15 @@ export function RecordingsSection({
               recording={recording}
               isPlayerOpen={player?.recordingId === recording.id}
               pendingAction={
-                pending?.recordingId === recording.id ? pending.action : null
+                pendingPlay === recording.id
+                  ? 'play'
+                  : pendingDownloads.has(recording.id)
+                    ? 'download'
+                    : null
               }
-              onPlay={() => void runAction(recording, 'play')}
+              onPlay={() => void play(recording)}
               onClosePlayer={() => setPlayer(null)}
-              onDownload={() => void runAction(recording, 'download')}
+              onDownload={() => void download(recording)}
               onDelete={
                 isOwner
                   ? () =>
@@ -366,7 +398,10 @@ export function RecordingsSection({
       )}
       {notice && (
         <div className="border-b border-separator px-5 py-4 sm:px-6">
-          <Alert role="alert" status={notice.status}>
+          <Alert
+            role={notice.status === 'success' ? 'status' : 'alert'}
+            status={notice.status}
+          >
             <Alert.Indicator />
             <Alert.Content>
               <Alert.Title>{notice.title}</Alert.Title>
