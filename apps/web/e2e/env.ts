@@ -10,6 +10,10 @@ export const API_URL = `http://localhost:${API_PORT}`;
 // size error with a small file.
 export const RECORDINGS_MAX_BYTES = 64 * 1024;
 
+// Signed stream/download URLs expire this fast, so a test can see the player
+// recover from an expired URL.
+export const RECORDING_URL_TTL_SECONDS = 4;
+
 export const TEST_DATABASE_URL =
   process.env.TEST_DATABASE_URL ??
   'postgresql://postgres:postgres@localhost:5432/video_meetings_test';

@@ -30,7 +30,7 @@ export const fixturePath = (name: string) => join(FIXTURES_DIR, name);
 export const fixture = (name: string) => readFileSync(fixturePath(name));
 
 async function api<T>(
-  method: 'GET' | 'POST',
+  method: 'GET' | 'POST' | 'DELETE',
   path: string,
   { token, json, form }: { token?: string; json?: unknown; form?: FormData },
 ): Promise<T> {
@@ -45,7 +45,7 @@ async function api<T>(
   if (!res.ok) {
     throw new Error(`${method} ${path} → ${res.status} ${await res.text()}`);
   }
-  return (await res.json()) as T;
+  return (res.status === 204 ? undefined : await res.json()) as T;
 }
 
 // Users, meetings and recordings are set up through the api directly, so each
@@ -101,11 +101,53 @@ export function listRecordings(
   });
 }
 
+export interface TestRecordingUrls {
+  streamUrl: string;
+  downloadUrl: string;
+  expiresAt: string;
+}
+
+export function getRecordingUrls(
+  user: TestUser,
+  meetingId: string,
+  recordingId: string,
+): Promise<TestRecordingUrls> {
+  return api<TestRecordingUrls>(
+    'GET',
+    `/meetings/${meetingId}/recordings/${recordingId}/urls`,
+    { token: user.token },
+  );
+}
+
+export function deleteRecording(
+  owner: TestUser,
+  meetingId: string,
+  recordingId: string,
+): Promise<void> {
+  return api<void>(
+    'DELETE',
+    `/meetings/${meetingId}/recordings/${recordingId}`,
+    { token: owner.token },
+  );
+}
+
 // Signs the browser in the way the app does: the token in localStorage.
 export async function signIn(page: Page, user: TestUser) {
   await page.addInitScript((token) => {
     localStorage.setItem('accessToken', token);
   }, user.token);
+}
+
+export async function openMeeting(
+  page: Page,
+  user: TestUser,
+  meeting: TestMeeting,
+) {
+  await signIn(page, user);
+  await page.goto(`/meetings/${meeting.id}`);
+  await expect(
+    page.getByRole('heading', { level: 1, name: meeting.title }),
+  ).toBeVisible();
 }
 
 export async function expectNoHorizontalScroll(page: Page) {

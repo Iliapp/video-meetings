@@ -4,6 +4,7 @@ import {
   API_PORT,
   API_URL,
   RECORDINGS_DIR,
+  RECORDING_URL_TTL_SECONDS,
   RECORDINGS_MAX_BYTES,
   TEST_DATABASE_URL,
   WEB_PORT,
@@ -49,6 +50,7 @@ export default defineConfig({
         WEB_ORIGIN: WEB_URL,
         RECORDINGS_DIR,
         RECORDINGS_MAX_BYTES: String(RECORDINGS_MAX_BYTES),
+        RECORDING_URL_TTL: `${RECORDING_URL_TTL_SECONDS}s`,
       },
     },
     {

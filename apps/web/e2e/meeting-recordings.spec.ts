@@ -7,12 +7,12 @@ import {
   fixture,
   fixturePath,
   listRecordings,
+  openMeeting,
   signIn,
   signUp,
   test,
   uploadRecording,
   type TestMeeting,
-  type TestUser,
 } from './fixtures';
 
 const UNSUPPORTED_FORMAT =
@@ -29,14 +29,6 @@ const fileInput = (page: Page) => page.locator('input[type="file"]');
 // Next.js adds its own role="alert" route announcer, so match the upload error.
 const uploadError = (page: Page) =>
   page.getByRole('alert').filter({ hasText: "Couldn't upload" });
-
-async function openMeeting(page: Page, user: TestUser, meeting: TestMeeting) {
-  await signIn(page, user);
-  await page.goto(`/meetings/${meeting.id}`);
-  await expect(
-    page.getByRole('heading', { level: 1, name: meeting.title }),
-  ).toBeVisible();
-}
 
 // Marks the window, so a test can check that the page was not reloaded.
 async function markWindow(page: Page) {
