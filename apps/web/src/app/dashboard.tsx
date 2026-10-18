@@ -1,7 +1,6 @@
 'use client';
 
 import {
-  ArrowRightFromSquare,
   ArrowRotateRight,
   Calendar,
   Clock,
@@ -10,23 +9,11 @@ import {
   Plus,
 } from '@gravity-ui/icons';
 import { Alert, Button, Card, Chip, Skeleton } from '@heroui/react';
-import { useRouter } from 'next/navigation';
-import {
-  useCallback,
-  useEffect,
-  useMemo,
-  useState,
-  useSyncExternalStore,
-  type ComponentType,
-} from 'react';
-import { Logo } from '@/components/logo';
+import NextLink from 'next/link';
+import { useEffect, useState, type ComponentType } from 'react';
+import { AppHeader } from '@/components/app-header';
 import { ApiError, listMeetings, type Meeting } from '@/lib/api';
-import {
-  clearAccessToken,
-  getAccessToken,
-  readSession,
-  subscribeToAccessToken,
-} from '@/lib/auth-token';
+import { useSession } from '@/lib/use-session';
 import { CreateMeetingModal } from './create-meeting-modal';
 
 const RECENT_LIMIT = 5;
@@ -48,25 +35,10 @@ const dateTimeFormat = new Intl.DateTimeFormat('en', {
 });
 
 export function Dashboard() {
-  const router = useRouter();
-  // `undefined` until hydrated: the server can't see localStorage.
-  const token = useSyncExternalStore(
-    subscribeToAccessToken,
-    getAccessToken,
-    () => undefined,
-  );
-  const session = useMemo(
-    () => (token === undefined ? undefined : token && readSession(token)),
-    [token],
-  );
+  const { session, signOut } = useSession();
   const [state, setState] = useState<MeetingsState>({ status: 'loading' });
   const [reloadKey, setReloadKey] = useState(0);
   const [isCreateOpen, setIsCreateOpen] = useState(false);
-
-  const signOut = useCallback(() => {
-    clearAccessToken();
-    router.replace('/login');
-  }, [router]);
 
   useEffect(() => {
     if (session === undefined) return;
@@ -125,15 +97,7 @@ export function Dashboard() {
 
   return (
     <div className="flex flex-1 flex-col">
-      <header className="border-b border-separator">
-        <div className="mx-auto flex h-16 w-full max-w-6xl items-center justify-between gap-4 px-4 sm:px-6">
-          <Logo />
-          <Button className="h-11" variant="secondary" onPress={signOut}>
-            <ArrowRightFromSquare aria-hidden className="size-4" />
-            Sign out
-          </Button>
-        </div>
-      </header>
+      <AppHeader onSignOut={signOut} />
 
       <main className="mx-auto flex w-full max-w-6xl flex-1 flex-col gap-8 px-4 py-8 sm:px-6 lg:py-12">
         <section className="flex flex-col gap-6 sm:flex-row sm:items-end sm:justify-between">
@@ -285,7 +249,9 @@ function MeetingRow({
   const people = meeting.participants.length + 1;
 
   return (
-    <li className="flex items-center gap-4 px-5 py-4 sm:px-6">
+    // The title link covers the whole row (`after:inset-0`), so the row is
+    // one click target with a single, readable link name.
+    <li className="relative flex items-center gap-4 px-5 py-4 transition-colors has-[a:hover]:bg-default/60 sm:px-6">
       <div
         aria-hidden
         className="flex size-12 shrink-0 flex-col items-center justify-center rounded-xl bg-default leading-none"
@@ -296,7 +262,12 @@ function MeetingRow({
         <span className="text-lg font-semibold">{dayFormat.format(date)}</span>
       </div>
       <div className="flex min-w-0 flex-1 flex-col gap-1">
-        <p className="truncate font-medium">{meeting.title}</p>
+        <NextLink
+          href={`/meetings/${meeting.id}`}
+          className="truncate font-medium outline-none after:absolute after:inset-0 after:rounded-none focus-visible:after:outline-2 focus-visible:after:-outline-offset-2 focus-visible:after:outline-accent"
+        >
+          {meeting.title}
+        </NextLink>
         <p className="flex flex-wrap items-center gap-x-3 gap-y-1 text-sm text-muted">
           <time dateTime={meeting.date}>{dateTimeFormat.format(date)}</time>
           <span className="flex items-center gap-1">
