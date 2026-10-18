@@ -117,17 +117,24 @@ test.describe('play', () => {
       const oldSrc = await video.evaluate((el: HTMLMediaElement) => el.src);
 
       await page.waitForTimeout((RECORDING_URL_TTL_SECONDS + 1) * 1000);
-      // The browser asks for the file again with the expired URL → 404.
-      await video.evaluate((el: HTMLMediaElement) => el.load());
+      // The browser asks for the file again with the expired token → 404, as
+      // when seeking past the buffer of a long recording. Chrome reuses a
+      // loaded resource for the same URL, so add a parameter.
+      await video.evaluate((el: HTMLMediaElement) => {
+        el.src = `${el.src}&reload=1`;
+      });
 
       await expect
         .poll(() =>
-          video.evaluate((el: HTMLMediaElement) => ({
-            error: el.error?.code ?? null,
-            ready: el.readyState >= HTMLMediaElement.HAVE_METADATA,
-            newSrc: el.src !== '' && el.src !== oldSrc,
-            position: Math.round(el.currentTime * 10) / 10,
-          })),
+          video.evaluate(
+            (el: HTMLMediaElement, oldSrc) => ({
+              error: el.error?.code ?? null,
+              ready: el.readyState >= HTMLMediaElement.HAVE_METADATA,
+              newSrc: el.src !== '' && el.src !== oldSrc,
+              position: Math.round(el.currentTime * 10) / 10,
+            }),
+            oldSrc,
+          ),
         )
         .toEqual({ error: null, ready: true, newSrc: true, position: 0.5 });
       await expect(alertWith(page, GONE)).toHaveCount(0);

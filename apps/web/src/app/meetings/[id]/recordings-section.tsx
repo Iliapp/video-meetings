@@ -1,17 +1,17 @@
 'use client';
 
+import { ArrowRotateRight, ArrowUpFromLine, Video } from '@gravity-ui/icons';
+import { Alert, Button, Card, CloseButton, Skeleton } from '@heroui/react';
+import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import {
-  ArrowRotateRight,
-  ArrowUpFromLine,
-  Clock,
-  Headphones,
-  HardDrive,
-  Video,
-} from '@gravity-ui/icons';
-import { Alert, Button, Card, Chip, Skeleton } from '@heroui/react';
-import { useCallback, useEffect, useState, type ReactNode } from 'react';
-import { ApiError, listRecordings, type Recording } from '@/lib/api';
-import { formatBytes, formatDuration, FORMATS_HINT } from '@/lib/recordings';
+  ApiError,
+  getRecordingUrls,
+  listRecordings,
+  type Recording,
+} from '@/lib/api';
+import { FORMATS_HINT } from '@/lib/recordings';
+import { RecordingPlayer } from './recording-player';
+import { RecordingRow } from './recording-row';
 import {
   RecordingDropZone,
   UploadButton,
@@ -24,10 +24,15 @@ type RecordingsState =
   | { status: 'error'; message: string }
   | { status: 'ready'; recordings: Recording[] };
 
-const uploadedFormat = new Intl.DateTimeFormat('en', {
-  dateStyle: 'medium',
-  timeStyle: 'short',
-});
+interface Notice {
+  status: 'warning' | 'danger';
+  title: string;
+  description: string;
+}
+
+const CONNECTION_ERROR = 'Failed to connect to the server.';
+const errorText = (e: unknown) =>
+  e instanceof ApiError ? e.message : CONNECTION_ERROR;
 
 export function RecordingsSection({
   meetingId,
@@ -97,6 +102,70 @@ export function RecordingsSection({
 
   const recordings = state.status === 'ready' ? state.recordings : [];
 
+  const [player, setPlayer] = useState<{
+    recordingId: string;
+    streamUrl: string;
+  } | null>(null);
+  const [pending, setPending] = useState<{
+    recordingId: string;
+    action: 'play' | 'download';
+  } | null>(null);
+  const [notice, setNotice] = useState<Notice | null>(null);
+  // Only the latest Play/Download press acts on its response.
+  const actionId = useRef(0);
+
+  /** Signed URLs, or `null` after handling a `401`. Throws other errors. */
+  const fetchUrls = useCallback(
+    async (recording: Recording) => {
+      try {
+        return await getRecordingUrls(token, meetingId, recording.id);
+      } catch (e) {
+        if (e instanceof ApiError && e.status === 401) {
+          onUnauthorized();
+          return null;
+        }
+        throw e;
+      }
+    },
+    [token, meetingId, onUnauthorized],
+  );
+
+  const runAction = async (
+    recording: Recording,
+    action: 'play' | 'download',
+  ) => {
+    const id = ++actionId.current;
+    setPending({ recordingId: recording.id, action });
+    setNotice(null);
+    try {
+      const urls = await fetchUrls(recording);
+      if (id !== actionId.current || !urls) return;
+      if (action === 'play') {
+        setPlayer({ recordingId: recording.id, streamUrl: urls.streamUrl });
+      } else {
+        // Content-Disposition: attachment, so the page stays.
+        const link = document.createElement('a');
+        link.href = urls.downloadUrl;
+        link.rel = 'noopener';
+        link.click();
+      }
+    } catch (e) {
+      if (id !== actionId.current) return;
+      setNotice({
+        status: 'danger',
+        title: `Couldn't ${action} ${recording.originalName}`,
+        description: errorText(e),
+      });
+    } finally {
+      if (id === actionId.current) setPending(null);
+    }
+  };
+
+  const refreshStreamUrl = async (recording: Recording) => {
+    const urls = await fetchUrls(recording);
+    return urls?.streamUrl ?? null;
+  };
+
   let content: ReactNode;
   if (state.status === 'loading') {
     content = <RecordingListSkeleton />;
@@ -155,7 +224,26 @@ export function RecordingsSection({
         )}
         <ul aria-label="Recordings" className="divide-y divide-separator">
           {recordings.map((recording) => (
-            <RecordingRow key={recording.id} recording={recording} />
+            <RecordingRow
+              key={recording.id}
+              recording={recording}
+              isPlayerOpen={player?.recordingId === recording.id}
+              pendingAction={
+                pending?.recordingId === recording.id ? pending.action : null
+              }
+              onPlay={() => void runAction(recording, 'play')}
+              onClosePlayer={() => setPlayer(null)}
+              onDownload={() => void runAction(recording, 'download')}
+              player={
+                player?.recordingId === recording.id && (
+                  <RecordingPlayer
+                    recording={recording}
+                    streamUrl={player.streamUrl}
+                    refreshUrl={() => refreshStreamUrl(recording)}
+                  />
+                )
+              }
+            />
           ))}
         </ul>
       </>
@@ -187,73 +275,24 @@ export function RecordingsSection({
           />
         </div>
       )}
+      {notice && (
+        <div className="border-b border-separator px-5 py-4 sm:px-6">
+          <Alert role="alert" status={notice.status}>
+            <Alert.Indicator />
+            <Alert.Content>
+              <Alert.Title>{notice.title}</Alert.Title>
+              <Alert.Description>{notice.description}</Alert.Description>
+            </Alert.Content>
+            <CloseButton
+              aria-label="Dismiss"
+              className="size-11"
+              onPress={() => setNotice(null)}
+            />
+          </Alert>
+        </div>
+      )}
       <Card.Content className="p-0">{content}</Card.Content>
     </Card>
-  );
-}
-
-function RecordingRow({ recording }: { recording: Recording }) {
-  const isVideo = recording.kind === 'video';
-  const Icon = isVideo ? Video : Headphones;
-
-  return (
-    <li className="flex items-start gap-4 px-5 py-4 sm:px-6">
-      <span
-        aria-hidden
-        className={`flex size-11 shrink-0 items-center justify-center rounded-xl ${
-          isVideo
-            ? 'bg-accent-soft text-accent-soft-foreground'
-            : 'bg-default text-foreground'
-        }`}
-      >
-        <Icon className="size-5" />
-      </span>
-      <div className="flex min-w-0 flex-1 flex-col gap-1.5">
-        <div className="flex min-w-0 items-center gap-2">
-          <p className="truncate font-medium" title={recording.originalName}>
-            {recording.originalName}
-          </p>
-          <Chip
-            size="sm"
-            variant="soft"
-            color={isVideo ? 'accent' : 'default'}
-            className="shrink-0"
-          >
-            {isVideo ? 'Video' : 'Audio'}
-          </Chip>
-        </div>
-        <p className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-muted">
-          <span className="flex items-center gap-1.5">
-            <HardDrive aria-hidden className="size-3.5" />
-            <span className="sr-only">Size </span>
-            {formatBytes(recording.sizeBytes)}
-          </span>
-          <span className="flex items-center gap-1.5 tabular-nums">
-            <Clock aria-hidden className="size-3.5" />
-            <span className="sr-only">Duration </span>
-            {recording.durationSeconds === null ? (
-              <span title="Duration unknown">
-                {formatDuration(null)}
-                <span className="sr-only"> (unknown)</span>
-              </span>
-            ) : (
-              formatDuration(recording.durationSeconds)
-            )}
-          </span>
-        </p>
-        <p className="flex min-w-0 flex-wrap gap-x-1 text-sm text-muted">
-          <span>
-            Uploaded{' '}
-            <time dateTime={recording.createdAt}>
-              {uploadedFormat.format(new Date(recording.createdAt))}
-            </time>
-          </span>
-          <span className="min-w-0 truncate" title={recording.uploaderEmail}>
-            by {recording.uploaderEmail}
-          </span>
-        </p>
-      </div>
-    </li>
   );
 }
 
