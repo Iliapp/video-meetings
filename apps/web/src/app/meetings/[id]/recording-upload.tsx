@@ -1,7 +1,7 @@
 'use client';
 
 import { ArrowRotateRight, ArrowUpFromLine, Xmark } from '@gravity-ui/icons';
-import { Alert, Button, Label, ProgressBar } from '@heroui/react';
+import { Alert, AlertDialog, Button, Label, ProgressBar } from '@heroui/react';
 import {
   useCallback,
   useEffect,
@@ -208,31 +208,7 @@ export function UploadStatus({
   onDismiss: () => void;
 }) {
   if (state.status === 'uploading') {
-    const isProcessing = state.progress >= 1;
-    return (
-      <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
-        <ProgressBar
-          className="min-w-0 flex-1"
-          value={state.progress * 100}
-          // The bytes are sent; the api is checking and saving the file.
-          valueLabel={isProcessing ? 'Processing…' : undefined}
-        >
-          <Label className="truncate">Uploading {state.fileName}</Label>
-          <ProgressBar.Output />
-          <ProgressBar.Track>
-            <ProgressBar.Fill />
-          </ProgressBar.Track>
-        </ProgressBar>
-        <Button
-          className="h-11 shrink-0"
-          variant="secondary"
-          onPress={onCancel}
-        >
-          <Xmark aria-hidden className="size-4" />
-          Cancel upload
-        </Button>
-      </div>
-    );
+    return <UploadProgress state={state} onCancel={onCancel} />;
   }
 
   if (state.status === 'error') {
@@ -269,4 +245,78 @@ export function UploadStatus({
   }
 
   return null;
+}
+
+function UploadProgress({
+  state,
+  onCancel,
+}: {
+  state: Extract<UploadState, { status: 'uploading' }>;
+  onCancel: () => void;
+}) {
+  // The upload keeps going while the dialog is open; it unmounts with this
+  // component when the upload finishes.
+  const [isConfirming, setIsConfirming] = useState(false);
+  const isProcessing = state.progress >= 1;
+
+  return (
+    <div className="flex flex-col gap-3 sm:flex-row sm:items-end">
+      <ProgressBar
+        className="min-w-0 flex-1"
+        value={state.progress * 100}
+        // The bytes are sent; the api is checking and saving the file.
+        valueLabel={isProcessing ? 'Processing…' : undefined}
+      >
+        <Label className="truncate">Uploading {state.fileName}</Label>
+        <ProgressBar.Output />
+        <ProgressBar.Track>
+          <ProgressBar.Fill />
+        </ProgressBar.Track>
+      </ProgressBar>
+      <Button
+        className="h-11 shrink-0"
+        variant="secondary"
+        onPress={() => setIsConfirming(true)}
+      >
+        <Xmark aria-hidden className="size-4" />
+        Cancel upload
+      </Button>
+      <AlertDialog.Backdrop
+        isOpen={isConfirming}
+        onOpenChange={setIsConfirming}
+      >
+        <AlertDialog.Container>
+          <AlertDialog.Dialog className="sm:max-w-[440px]">
+            <AlertDialog.CloseTrigger />
+            <AlertDialog.Header>
+              <AlertDialog.Icon status="warning" />
+              <AlertDialog.Heading>Cancel upload?</AlertDialog.Heading>
+            </AlertDialog.Header>
+            <AlertDialog.Body>
+              <p>
+                <strong className="break-all">{state.fileName}</strong>{' '}
+                hasn&apos;t finished uploading. If you cancel, it won&apos;t be
+                saved and you&apos;ll need to upload it again.
+              </p>
+            </AlertDialog.Body>
+            <AlertDialog.Footer>
+              <Button slot="close" className="h-11" variant="tertiary">
+                Keep uploading
+              </Button>
+              <Button
+                className="h-11"
+                variant="danger"
+                onPress={() => {
+                  setIsConfirming(false);
+                  onCancel();
+                }}
+              >
+                Cancel upload
+              </Button>
+            </AlertDialog.Footer>
+          </AlertDialog.Dialog>
+        </AlertDialog.Container>
+      </AlertDialog.Backdrop>
+    </div>
+  );
 }
