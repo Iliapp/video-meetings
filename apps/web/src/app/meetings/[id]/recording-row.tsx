@@ -6,6 +6,7 @@ import {
   Headphones,
   HardDrive,
   Play,
+  TrashBin,
   Video,
   Xmark,
 } from '@gravity-ui/icons';
@@ -26,6 +27,7 @@ export function RecordingRow({
   onPlay,
   onClosePlayer,
   onDownload,
+  onDelete,
   player,
 }: {
   recording: Recording;
@@ -35,6 +37,8 @@ export function RecordingRow({
   onPlay: () => void;
   onClosePlayer: () => void;
   onDownload: () => void;
+  /** Owner only; left out for invited users. */
+  onDelete?: () => void;
   player: ReactNode;
 }) {
   const isVideo = recording.kind === 'video';
@@ -124,6 +128,15 @@ export function RecordingRow({
             isPending={pendingAction === 'download'}
             onPress={onDownload}
           />
+          {onDelete && (
+            <RowAction
+              label={`Delete ${name}`}
+              tooltip="Delete"
+              icon={TrashBin}
+              isDanger
+              onPress={onDelete}
+            />
+          )}
         </div>
       </div>
       {player && <div className="sm:pl-15">{player}</div>}

@@ -126,6 +126,14 @@ export const getRecordingUrls = (
     { token },
   );
 
+/** Owner only (`403` otherwise); `404` when it is already gone. */
+export const deleteRecording = (
+  token: string,
+  meetingId: string,
+  recordingId: string,
+) =>
+  request<void>('DELETE', recordingPath(meetingId, recordingId), { token });
+
 export const UPLOAD_FAILED_MESSAGE =
   'Upload failed. Check your connection and try again.';
 

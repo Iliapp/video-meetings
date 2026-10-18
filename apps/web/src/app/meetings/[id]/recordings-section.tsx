@@ -5,11 +5,13 @@ import { Alert, Button, Card, CloseButton, Skeleton } from '@heroui/react';
 import { useCallback, useEffect, useRef, useState, type ReactNode } from 'react';
 import {
   ApiError,
+  deleteRecording,
   getRecordingUrls,
   listRecordings,
   type Recording,
 } from '@/lib/api';
 import { FORMATS_HINT } from '@/lib/recordings';
+import { DeleteRecordingDialog } from './delete-recording-dialog';
 import { RecordingPlayer } from './recording-player';
 import { RecordingRow } from './recording-row';
 import {
@@ -161,6 +163,46 @@ export function RecordingsSection({
     }
   };
 
+  const [deletion, setDeletion] = useState<{
+    recording: Recording;
+    isOpen: boolean;
+    isPending: boolean;
+    error: string | null;
+  } | null>(null);
+
+  const removeFromList = (recordingId: string) => {
+    setState((s) =>
+      s.status === 'ready'
+        ? {
+            status: 'ready',
+            recordings: s.recordings.filter((r) => r.id !== recordingId),
+          }
+        : s,
+    );
+    setPlayer((p) => (p?.recordingId === recordingId ? null : p));
+  };
+
+  const confirmDelete = async () => {
+    if (!deletion) return;
+    const { recording } = deletion;
+    setDeletion({ ...deletion, isPending: true, error: null });
+    try {
+      await deleteRecording(token, meetingId, recording.id);
+      setDeletion({ ...deletion, isOpen: false, isPending: false, error: null });
+      removeFromList(recording.id);
+    } catch (e) {
+      if (e instanceof ApiError && e.status === 401) {
+        onUnauthorized();
+        return;
+      }
+      setDeletion({
+        ...deletion,
+        isPending: false,
+        error: errorText(e),
+      });
+    }
+  };
+
   const refreshStreamUrl = async (recording: Recording) => {
     const urls = await fetchUrls(recording);
     return urls?.streamUrl ?? null;
@@ -234,6 +276,17 @@ export function RecordingsSection({
               onPlay={() => void runAction(recording, 'play')}
               onClosePlayer={() => setPlayer(null)}
               onDownload={() => void runAction(recording, 'download')}
+              onDelete={
+                isOwner
+                  ? () =>
+                      setDeletion({
+                        recording,
+                        isOpen: true,
+                        isPending: false,
+                        error: null,
+                      })
+                  : undefined
+              }
               player={
                 player?.recordingId === recording.id && (
                   <RecordingPlayer
@@ -292,6 +345,16 @@ export function RecordingsSection({
         </div>
       )}
       <Card.Content className="p-0">{content}</Card.Content>
+      {isOwner && (
+        <DeleteRecordingDialog
+          recording={deletion?.recording ?? null}
+          isOpen={deletion?.isOpen ?? false}
+          isPending={deletion?.isPending ?? false}
+          error={deletion?.error ?? null}
+          onConfirm={() => void confirmDelete()}
+          onClose={() => setDeletion((d) => d && { ...d, isOpen: false })}
+        />
+      )}
     </Card>
   );
 }
