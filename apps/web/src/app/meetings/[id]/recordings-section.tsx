@@ -1,17 +1,25 @@
 'use client';
 
+import { ArrowRotateRight, ArrowUpFromLine, Video } from '@gravity-ui/icons';
+import { Alert, Button, Card, CloseButton, Skeleton } from '@heroui/react';
 import {
-  ArrowRotateRight,
-  ArrowUpFromLine,
-  Clock,
-  Headphones,
-  HardDrive,
-  Video,
-} from '@gravity-ui/icons';
-import { Alert, Button, Card, Chip, Skeleton } from '@heroui/react';
-import { useCallback, useEffect, useState, type ReactNode } from 'react';
-import { ApiError, listRecordings, type Recording } from '@/lib/api';
-import { formatBytes, formatDuration, FORMATS_HINT } from '@/lib/recordings';
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  type ReactNode,
+} from 'react';
+import {
+  ApiError,
+  deleteRecording,
+  getRecordingUrls,
+  listRecordings,
+  type Recording,
+} from '@/lib/api';
+import { FORMATS_HINT } from '@/lib/recordings';
+import { DeleteRecordingDialog } from './delete-recording-dialog';
+import { RecordingPlayer } from './recording-player';
+import { RecordingRow } from './recording-row';
 import {
   RecordingDropZone,
   UploadButton,
@@ -24,10 +32,15 @@ type RecordingsState =
   | { status: 'error'; message: string }
   | { status: 'ready'; recordings: Recording[] };
 
-const uploadedFormat = new Intl.DateTimeFormat('en', {
-  dateStyle: 'medium',
-  timeStyle: 'short',
-});
+interface Notice {
+  status: 'success' | 'warning' | 'danger';
+  title: string;
+  description: string;
+}
+
+const CONNECTION_ERROR = 'Failed to connect to the server.';
+const errorText = (e: unknown) =>
+  e instanceof ApiError ? e.message : CONNECTION_ERROR;
 
 export function RecordingsSection({
   meetingId,
@@ -56,10 +69,7 @@ export function RecordingsSection({
         } else {
           setState({
             status: 'error',
-            message:
-              e instanceof ApiError
-                ? e.message
-                : 'Failed to connect to the server.',
+            message: errorText(e),
           });
         }
       },
@@ -96,6 +106,171 @@ export function RecordingsSection({
   const isUploading = upload.state.status === 'uploading';
 
   const recordings = state.status === 'ready' ? state.recordings : [];
+
+  const [player, setPlayer] = useState<{
+    recordingId: string;
+    streamUrl: string;
+  } | null>(null);
+  const [pendingPlay, setPendingPlay] = useState<string | null>(null);
+  // Downloads aren't superseded by later presses, so track each one.
+  const [pendingDownloads, setPendingDownloads] = useState<ReadonlySet<string>>(
+    new Set(),
+  );
+  const [notice, setNotice] = useState<Notice | null>(null);
+  const [deletion, setDeletion] = useState<{
+    recording: Recording;
+    isOpen: boolean;
+    isPending: boolean;
+    error: string | null;
+  } | null>(null);
+  // Only the latest Play press opens a player.
+  const playId = useRef(0);
+
+  const removeFromList = useCallback((recordingId: string) => {
+    setState((s) =>
+      s.status === 'ready'
+        ? {
+            status: 'ready',
+            recordings: s.recordings.filter((r) => r.id !== recordingId),
+          }
+        : s,
+    );
+    setPlayer((p) => (p?.recordingId === recordingId ? null : p));
+  }, []);
+
+  // Deleted elsewhere (or access lost): say so, drop it and reload the list.
+  const onGone = useCallback(
+    (recording: Recording) => {
+      removeFromList(recording.id);
+      setDeletion((d) => d && { ...d, isOpen: false, isPending: false });
+      setNotice({
+        status: 'warning',
+        title: 'This recording is no longer available',
+        description: `${recording.originalName} may have been deleted. The list has been refreshed.`,
+      });
+      setReloadKey((key) => key + 1);
+    },
+    [removeFromList],
+  );
+
+  /**
+   * Signed URLs, or `null` after handling a `401` or a `404` (gone). Throws
+   * other errors.
+   */
+  const fetchUrls = useCallback(
+    async (recording: Recording) => {
+      try {
+        return await getRecordingUrls(token, meetingId, recording.id);
+      } catch (e) {
+        if (e instanceof ApiError && e.status === 401) {
+          onUnauthorized();
+          return null;
+        }
+        if (e instanceof ApiError && e.status === 404) {
+          onGone(recording);
+          return null;
+        }
+        throw e;
+      }
+    },
+    [token, meetingId, onUnauthorized, onGone],
+  );
+
+  const play = async (recording: Recording) => {
+    const id = ++playId.current;
+    setPendingPlay(recording.id);
+    setNotice(null);
+    try {
+      const urls = await fetchUrls(recording);
+      if (id === playId.current && urls) {
+        setPlayer({ recordingId: recording.id, streamUrl: urls.streamUrl });
+      }
+    } catch (e) {
+      if (id !== playId.current) return;
+      setNotice({
+        status: 'danger',
+        title: `Couldn't play ${recording.originalName}`,
+        description: errorText(e),
+      });
+    } finally {
+      if (id === playId.current) setPendingPlay(null);
+    }
+  };
+
+  const download = async (recording: Recording) => {
+    setPendingDownloads((ids) => new Set(ids).add(recording.id));
+    setNotice(null);
+    try {
+      const urls = await fetchUrls(recording);
+      if (!urls) return;
+      // A link to a non-attachment response (a 404's JSON) would replace the
+      // app, so check the file first.
+      const probe = await fetch(urls.downloadUrl, { method: 'HEAD' });
+      if (probe.status === 404) {
+        onGone(recording);
+        return;
+      }
+      if (!probe.ok) {
+        throw new ApiError(probe.status, `Request failed (${probe.status})`);
+      }
+      // Content-Disposition: attachment, so the page stays.
+      const link = document.createElement('a');
+      link.href = urls.downloadUrl;
+      link.click();
+    } catch (e) {
+      setNotice({
+        status: 'danger',
+        title: `Couldn't download ${recording.originalName}`,
+        description: errorText(e),
+      });
+    } finally {
+      setPendingDownloads((ids) => {
+        const next = new Set(ids);
+        next.delete(recording.id);
+        return next;
+      });
+    }
+  };
+
+  const confirmDelete = async () => {
+    if (!deletion) return;
+    const { recording } = deletion;
+    setDeletion({ ...deletion, isPending: true, error: null });
+    try {
+      await deleteRecording(token, meetingId, recording.id);
+      setDeletion({
+        ...deletion,
+        isOpen: false,
+        isPending: false,
+        error: null,
+      });
+      removeFromList(recording.id);
+      setNotice({
+        status: 'success',
+        title: 'Recording deleted',
+        description: `${recording.originalName} was deleted for everyone in this meeting.`,
+      });
+    } catch (e) {
+      if (e instanceof ApiError && e.status === 401) {
+        onUnauthorized();
+        return;
+      }
+      if (e instanceof ApiError && e.status === 404) {
+        onGone(recording);
+        return;
+      }
+      setDeletion({
+        ...deletion,
+        isPending: false,
+        error: errorText(e),
+      });
+    }
+  };
+
+  const refreshStreamUrl = async (recording: Recording) => {
+    const urls = await fetchUrls(recording);
+    return urls?.streamUrl ?? null;
+  };
 
   let content: ReactNode;
   if (state.status === 'loading') {
@@ -155,7 +330,41 @@ export function RecordingsSection({
         )}
         <ul aria-label="Recordings" className="divide-y divide-separator">
           {recordings.map((recording) => (
-            <RecordingRow key={recording.id} recording={recording} />
+            <RecordingRow
+              key={recording.id}
+              recording={recording}
+              isPlayerOpen={player?.recordingId === recording.id}
+              pendingAction={
+                pendingPlay === recording.id
+                  ? 'play'
+                  : pendingDownloads.has(recording.id)
+                    ? 'download'
+                    : null
+              }
+              onPlay={() => void play(recording)}
+              onClosePlayer={() => setPlayer(null)}
+              onDownload={() => void download(recording)}
+              onDelete={
+                isOwner
+                  ? () =>
+                      setDeletion({
+                        recording,
+                        isOpen: true,
+                        isPending: false,
+                        error: null,
+                      })
+                  : undefined
+              }
+              player={
+                player?.recordingId === recording.id && (
+                  <RecordingPlayer
+                    recording={recording}
+                    streamUrl={player.streamUrl}
+                    refreshUrl={() => refreshStreamUrl(recording)}
+                  />
+                )
+              }
+            />
           ))}
         </ul>
       </>
@@ -187,73 +396,37 @@ export function RecordingsSection({
           />
         </div>
       )}
-      <Card.Content className="p-0">{content}</Card.Content>
-    </Card>
-  );
-}
-
-function RecordingRow({ recording }: { recording: Recording }) {
-  const isVideo = recording.kind === 'video';
-  const Icon = isVideo ? Video : Headphones;
-
-  return (
-    <li className="flex items-start gap-4 px-5 py-4 sm:px-6">
-      <span
-        aria-hidden
-        className={`flex size-11 shrink-0 items-center justify-center rounded-xl ${
-          isVideo
-            ? 'bg-accent-soft text-accent-soft-foreground'
-            : 'bg-default text-foreground'
-        }`}
-      >
-        <Icon className="size-5" />
-      </span>
-      <div className="flex min-w-0 flex-1 flex-col gap-1.5">
-        <div className="flex min-w-0 items-center gap-2">
-          <p className="truncate font-medium" title={recording.originalName}>
-            {recording.originalName}
-          </p>
-          <Chip
-            size="sm"
-            variant="soft"
-            color={isVideo ? 'accent' : 'default'}
-            className="shrink-0"
+      {notice && (
+        <div className="border-b border-separator px-5 py-4 sm:px-6">
+          <Alert
+            role={notice.status === 'success' ? 'status' : 'alert'}
+            status={notice.status}
           >
-            {isVideo ? 'Video' : 'Audio'}
-          </Chip>
+            <Alert.Indicator />
+            <Alert.Content>
+              <Alert.Title>{notice.title}</Alert.Title>
+              <Alert.Description>{notice.description}</Alert.Description>
+            </Alert.Content>
+            <CloseButton
+              aria-label="Dismiss"
+              className="size-11"
+              onPress={() => setNotice(null)}
+            />
+          </Alert>
         </div>
-        <p className="flex flex-wrap items-center gap-x-4 gap-y-1 text-sm text-muted">
-          <span className="flex items-center gap-1.5">
-            <HardDrive aria-hidden className="size-3.5" />
-            <span className="sr-only">Size </span>
-            {formatBytes(recording.sizeBytes)}
-          </span>
-          <span className="flex items-center gap-1.5 tabular-nums">
-            <Clock aria-hidden className="size-3.5" />
-            <span className="sr-only">Duration </span>
-            {recording.durationSeconds === null ? (
-              <span title="Duration unknown">
-                {formatDuration(null)}
-                <span className="sr-only"> (unknown)</span>
-              </span>
-            ) : (
-              formatDuration(recording.durationSeconds)
-            )}
-          </span>
-        </p>
-        <p className="flex min-w-0 flex-wrap gap-x-1 text-sm text-muted">
-          <span>
-            Uploaded{' '}
-            <time dateTime={recording.createdAt}>
-              {uploadedFormat.format(new Date(recording.createdAt))}
-            </time>
-          </span>
-          <span className="min-w-0 truncate" title={recording.uploaderEmail}>
-            by {recording.uploaderEmail}
-          </span>
-        </p>
-      </div>
-    </li>
+      )}
+      <Card.Content className="p-0">{content}</Card.Content>
+      {isOwner && (
+        <DeleteRecordingDialog
+          recording={deletion?.recording ?? null}
+          isOpen={deletion?.isOpen ?? false}
+          isPending={deletion?.isPending ?? false}
+          error={deletion?.error ?? null}
+          onConfirm={() => void confirmDelete()}
+          onClose={() => setDeletion((d) => d && { ...d, isOpen: false })}
+        />
+      )}
+    </Card>
   );
 }
 

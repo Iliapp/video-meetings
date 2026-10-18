@@ -43,6 +43,13 @@ export interface Recording {
   uploaderEmail: string;
 }
 
+/** Signed, expiring URLs; the browser loads them without the access token. */
+export interface RecordingUrls {
+  streamUrl: string;
+  downloadUrl: string;
+  expiresAt: string;
+}
+
 export interface NewMeeting {
   title: string;
   date: string;
@@ -58,7 +65,7 @@ function errorMessage(data: unknown, status: number): string {
 }
 
 async function request<T>(
-  method: 'GET' | 'POST',
+  method: 'GET' | 'POST' | 'DELETE',
   path: string,
   { body, token }: { body?: unknown; token?: string } = {},
 ): Promise<T> {
@@ -103,6 +110,28 @@ export const listRecordings = (token: string, meetingId: string) =>
     `/meetings/${encodeURIComponent(meetingId)}/recordings`,
     { token },
   );
+
+const recordingPath = (meetingId: string, recordingId: string) =>
+  `/meetings/${encodeURIComponent(meetingId)}/recordings/${encodeURIComponent(recordingId)}`;
+
+/** `404` when the recording (or access to the meeting) is gone. */
+export const getRecordingUrls = (
+  token: string,
+  meetingId: string,
+  recordingId: string,
+) =>
+  request<RecordingUrls>(
+    'GET',
+    `${recordingPath(meetingId, recordingId)}/urls`,
+    { token },
+  );
+
+/** Owner only (`403` otherwise); `404` when it is already gone. */
+export const deleteRecording = (
+  token: string,
+  meetingId: string,
+  recordingId: string,
+) => request<void>('DELETE', recordingPath(meetingId, recordingId), { token });
 
 export const UPLOAD_FAILED_MESSAGE =
   'Upload failed. Check your connection and try again.';
