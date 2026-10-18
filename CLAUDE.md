@@ -36,6 +36,7 @@ Each app has its own `CLAUDE.md` with app-specific notes; read it before working
 - Refactoring: run the affected app's tests (api: `pnpm test` and `pnpm test:e2e`, see `apps/api/CLAUDE.md`) and confirm they are green before you start, then run them again after each step. Don't continue from a red state. Tests that fail beforehand are reported, not fixed silently.
 - Don't commit build output (`dist`, `.next`, `*.tsbuildinfo`) or `.env*` files; they are gitignored.
 - Agent skills live in `.agents/skills/` (tracked in `skills-lock.json`) and are symlinked into `.claude/skills/`. Install new ones with `pnpm dlx skills add <source>`.
+- Project-specific skills are plain folders in `.claude/skills/` (not in `skills-lock.json`): `prd` (writes `docs/prd-<feature>.md`), `plan-phase` (splits a PRD into phases in `docs/plan-<feature>.md`) and `issues` (creates GitHub milestones and issues from a plan with `gh`).
 
 ## Keeping docs in sync with architecture
 
