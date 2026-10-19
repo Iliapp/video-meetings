@@ -9,3 +9,9 @@ coverage
 .DS_Store
 !.env.example
 .playwright-mcp/
+
+# Uploaded files
+/upload/
+
+# Ralph loop iteration counter
+.claude/ralph.iterations.json
