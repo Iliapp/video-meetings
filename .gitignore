@@ -12,3 +12,4 @@ coverage
 
 # Uploaded files
 upload/
+.claude/ralph.iterations.json
