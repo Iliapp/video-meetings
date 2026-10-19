@@ -9,3 +9,6 @@ coverage
 .DS_Store
 !.env.example
 .playwright-mcp/
+
+# Uploaded files
+upload/
