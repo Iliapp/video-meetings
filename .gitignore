@@ -11,5 +11,7 @@ coverage
 .playwright-mcp/
 
 # Uploaded files
-upload/
+/upload/
+
+# Ralph loop iteration counter
 .claude/ralph.iterations.json
