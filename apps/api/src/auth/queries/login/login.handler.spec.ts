@@ -12,6 +12,7 @@ describe('LoginHandler', () => {
   const user: User = {
     id: 'user-id',
     email: 'user@example.com',
+    name: null,
     passwordHash: 'stored-hash',
     createdAt: new Date(),
     updatedAt: new Date(),
