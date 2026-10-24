@@ -13,6 +13,7 @@ import NextLink from 'next/link';
 import { useEffect, useState, type ComponentType } from 'react';
 import { AppHeader } from '@/components/app-header';
 import { ApiError, listMeetings, type Meeting } from '@/lib/api';
+import { useProfile } from '@/lib/use-profile';
 import { useSession } from '@/lib/use-session';
 import { CreateMeetingModal } from './create-meeting-modal';
 
@@ -39,6 +40,7 @@ export function Dashboard() {
   const [state, setState] = useState<MeetingsState>({ status: 'loading' });
   const [reloadKey, setReloadKey] = useState(0);
   const [isCreateOpen, setIsCreateOpen] = useState(false);
+  const { state: profile, reload: reloadProfile } = useProfile(session?.token);
 
   useEffect(() => {
     if (session === undefined) return;
@@ -97,14 +99,27 @@ export function Dashboard() {
 
   return (
     <div className="flex flex-1 flex-col">
-      <AppHeader onSignOut={signOut} />
+      <AppHeader session={session} onSignOut={signOut} />
 
       <main className="mx-auto flex w-full max-w-6xl flex-1 flex-col gap-8 px-4 py-8 sm:px-6 lg:py-12">
         <section className="flex flex-col gap-6 sm:flex-row sm:items-end sm:justify-between">
           <div className="flex min-w-0 flex-col gap-1">
             <p className="text-muted">Welcome back,</p>
             <h1 className="text-xl font-semibold tracking-tight break-words sm:text-3xl">
-              {session.email}
+              {profile.status === 'loading' ? (
+                <>
+                  <span className="sr-only">Loading your profile</span>
+                  <span
+                    aria-hidden
+                    className="block h-7 w-64 max-w-full animate-pulse rounded-md bg-default sm:h-9"
+                  />
+                </>
+              ) : profile.status === 'ready' ? (
+                (profile.profile.name ?? session.email)
+              ) : (
+                // The header handles a 401; other failures show the email.
+                session.email
+              )}
             </h1>
           </div>
           <Button
@@ -131,6 +146,7 @@ export function Dashboard() {
                 onPress={() => {
                   setState({ status: 'loading' });
                   setReloadKey((key) => key + 1);
+                  if (profile.status === 'error') reloadProfile();
                 }}
               >
                 <ArrowRotateRight aria-hidden className="size-4" />
