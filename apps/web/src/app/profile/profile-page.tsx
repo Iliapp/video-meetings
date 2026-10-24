@@ -81,7 +81,7 @@ export function ProfilePage() {
 function FormSkeleton() {
   return (
     <div
-      aria-busy
+      role="status"
       aria-label="Loading your profile"
       className="flex flex-col gap-6 rounded-3xl border border-separator p-5 sm:p-6"
     >

@@ -112,8 +112,9 @@ export function NameForm({
         value={profile.email}
       >
         <Label>Email</Label>
-        {/* Muted fill, so it doesn't read as an editable field. */}
-        <Input className="h-12 bg-default text-muted shadow-none" />
+        {/* Muted fill, so it doesn't read as an editable field; the text keeps
+            the foreground color (muted text on the fill is below AA). */}
+        <Input className="h-12 bg-default shadow-none" />
         <Description className="text-sm">
           Your sign-in email can&apos;t be changed.
         </Description>
