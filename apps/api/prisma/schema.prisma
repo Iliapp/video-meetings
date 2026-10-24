@@ -9,14 +9,16 @@ datasource db {
 }
 
 model User {
-  id           String   @id @default(uuid()) @db.Uuid
-  email        String   @unique
-  name         String?
+  id             String   @id @default(uuid()) @db.Uuid
+  email          String   @unique
+  name           String?
   // File name under AVATARS_DIR, new on every upload; null → no avatar.
-  avatarKey    String?  @unique @map("avatar_key") @db.Uuid
-  passwordHash String   @map("password_hash")
-  createdAt    DateTime @default(now()) @map("created_at")
-  updatedAt    DateTime @updatedAt @map("updated_at")
+  avatarKey      String?  @unique @map("avatar_key") @db.Uuid
+  // Canonical MIME type from the extension and magic bytes; set with avatarKey.
+  avatarMimeType String?  @map("avatar_mime_type")
+  passwordHash   String   @map("password_hash")
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
 
   meetings   Meeting[]
   recordings Recording[]
