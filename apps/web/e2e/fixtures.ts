@@ -30,7 +30,7 @@ export const fixturePath = (name: string) => join(FIXTURES_DIR, name);
 export const fixture = (name: string) => readFileSync(fixturePath(name));
 
 async function api<T>(
-  method: 'GET' | 'POST' | 'DELETE',
+  method: 'GET' | 'POST' | 'PATCH' | 'DELETE',
   path: string,
   { token, json, form }: { token?: string; json?: unknown; form?: FormData },
 ): Promise<T> {
@@ -101,6 +101,13 @@ export function listRecordings(
   });
 }
 
+export function setName(user: TestUser, name: string | null): Promise<void> {
+  return api<void>('PATCH', '/users/me', {
+    token: user.token,
+    json: { name },
+  });
+}
+
 export interface TestRecordingUrls {
   streamUrl: string;
   downloadUrl: string;
@@ -136,6 +143,17 @@ export async function signIn(page: Page, user: TestUser) {
   await page.addInitScript((token) => {
     localStorage.setItem('accessToken', token);
   }, user.token);
+}
+
+// Signs in through the login form, as a user would. Use it instead of
+// `signIn` when the test signs out, since `signIn` restores the token on
+// every page load.
+export async function signInWithForm(page: Page, user: TestUser) {
+  await page.goto('/login');
+  await page.getByRole('textbox', { name: 'Email' }).fill(user.email);
+  await page.getByLabel('Password', { exact: true }).fill(PASSWORD);
+  await page.getByRole('button', { name: 'Sign in' }).click();
+  await expect(page).toHaveURL('/');
 }
 
 export async function openMeeting(
