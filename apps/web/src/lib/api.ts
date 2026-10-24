@@ -50,6 +50,15 @@ export interface RecordingUrls {
   expiresAt: string;
 }
 
+/** The signed-in user's own record from `GET/PATCH /users/me`. */
+export interface Profile {
+  id: string;
+  email: string;
+  /** `null` when the user hasn't set one; show the email instead. */
+  name: string | null;
+  avatarUrl: string | null;
+}
+
 export interface NewMeeting {
   title: string;
   date: string;
@@ -65,7 +74,7 @@ function errorMessage(data: unknown, status: number): string {
 }
 
 async function request<T>(
-  method: 'GET' | 'POST' | 'DELETE',
+  method: 'GET' | 'POST' | 'PATCH' | 'DELETE',
   path: string,
   { body, token }: { body?: unknown; token?: string } = {},
 ): Promise<T> {
@@ -92,6 +101,15 @@ export const register = (credentials: Credentials) =>
 
 export const login = (credentials: Credentials) =>
   request<AuthResponse>('POST', '/auth/login', { body: credentials });
+
+export const getProfile = (token: string) =>
+  request<Profile>('GET', '/users/me', { token });
+
+/** `name: null` clears it. The api trims it and allows 1-100 characters. */
+export const updateProfile = (
+  token: string,
+  changes: { name: string | null },
+) => request<Profile>('PATCH', '/users/me', { body: changes, token });
 
 export const listMeetings = (token: string) =>
   request<Meeting[]>('GET', '/meetings', { token });
