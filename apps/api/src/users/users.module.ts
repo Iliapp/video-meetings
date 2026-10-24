@@ -5,12 +5,13 @@ import { UpdateProfileHandler } from './commands/update-profile/update-profile.h
 import { ProfileController } from './profile.controller';
 import { FindUserByEmailHandler } from './queries/find-user-by-email/find-user-by-email.handler';
 import { GetProfileHandler } from './queries/get-profile/get-profile.handler';
+import { AvatarStorageModule } from './storage/avatar-storage.module';
 
 // Owns user records. Other modules reach it only through the buses
 // (CreateUserCommand, FindUserByEmailQuery), so nothing imports this module
 // except AppModule, which registers its handlers and ProfileController.
 @Module({
-  imports: [AuthModule],
+  imports: [AuthModule, AvatarStorageModule],
   controllers: [ProfileController],
   providers: [
     CreateUserHandler,

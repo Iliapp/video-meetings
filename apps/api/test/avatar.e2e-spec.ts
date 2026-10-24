@@ -1,5 +1,5 @@
 import { randomUUID } from 'node:crypto';
-import { readFileSync } from 'node:fs';
+import { readFileSync, rmSync } from 'node:fs';
 import { join } from 'node:path';
 import { Test, TestingModule } from '@nestjs/testing';
 import { INestApplication } from '@nestjs/common';
@@ -129,6 +129,7 @@ describe('Avatar (e2e)', () => {
 
   afterAll(async () => {
     await app.close();
+    rmSync(process.env.AVATARS_DIR as string, { recursive: true, force: true });
   });
 
   describe('PUT /users/me/avatar', () => {
