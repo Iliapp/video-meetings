@@ -6,6 +6,8 @@ export class ApiError extends Error {
   constructor(
     readonly status: number,
     message: string,
+    // The request field the error is about, when the api names one.
+    readonly field?: string,
   ) {
     super(message);
   }
@@ -94,7 +96,12 @@ async function request<T>(
   const data: unknown = await response.json().catch(() => null);
 
   if (!response.ok) {
-    throw new ApiError(response.status, errorMessage(data, response.status));
+    const field = (data as { field?: unknown } | null)?.field;
+    throw new ApiError(
+      response.status,
+      errorMessage(data, response.status),
+      typeof field === 'string' ? field : undefined,
+    );
   }
 
   return data as T;
@@ -108,8 +115,9 @@ export const login = (credentials: Credentials) =>
 
 /**
  * `204`; the current session stays valid. A wrong current password is `400`
- * (not `401`, so it isn't mistaken for a lost session), a new password under
- * 8 characters `400`, a concurrent change `409`.
+ * with `field: 'currentPassword'` (not `401`, so it isn't mistaken for a lost
+ * session), a new password under 8 characters `400`, a concurrent change
+ * `409`.
  */
 export const changePassword = (
   token: string,

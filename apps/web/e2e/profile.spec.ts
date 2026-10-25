@@ -28,6 +28,8 @@ const NEW_PASSWORD = 'N3wPassw0rd!';
 const PASSWORD_TOO_SHORT = 'Password must be at least 8 characters';
 const PASSWORDS_DONT_MATCH = "Passwords don't match";
 const WRONG_CURRENT_PASSWORD = 'Current password is incorrect';
+const PASSWORD_CHANGED_ELSEWHERE =
+  "Your password was just changed in another request, so this change wasn't saved. Use your latest password the next time you sign in.";
 
 const header = (page: Page) => page.getByRole('banner');
 // The header link to /profile is named by what it shows: the name, or the
@@ -747,6 +749,140 @@ test.describe('password change', () => {
       await expect(page.getByText(WRONG_CURRENT_PASSWORD)).toHaveCount(0);
       expect(sent).toHaveLength(2);
       expect(await canSignIn(user, NEW_PASSWORD)).toBe(true);
+    });
+  });
+
+  // Answers the next password change with `status` and `body` (or a network
+  // failure), so the error states can be checked.
+  async function failPasswordChange(
+    page: Page,
+    failure: { status: number; body: object } | 'network',
+  ) {
+    await page.route(PASSWORD_ENDPOINT, (route) => {
+      if (route.request().method() !== 'POST') return route.continue();
+      if (failure === 'network') return route.abort('failed');
+      return route.fulfill({
+        status: failure.status,
+        headers: { 'Access-Control-Allow-Origin': WEB_URL },
+        json: failure.body,
+      });
+    });
+  }
+  const passwordError = (page: Page) =>
+    alertWith(page, "Couldn't change your password");
+
+  test.describe(() => {
+    test.use({ allowConsoleErrors: [/status of 400/] });
+
+    test('the wrong current password error is found by its field, not its text', async ({
+      page,
+    }) => {
+      const user = await signUp();
+      await openProfile(page, user);
+      await failPasswordChange(page, {
+        status: 400,
+        body: {
+          statusCode: 400,
+          message: 'Wrong password',
+          field: 'currentPassword',
+        },
+      });
+
+      await fillPasswordForm(page, PASSWORD, NEW_PASSWORD);
+      await changePasswordButton(page).click();
+
+      await expect(page.getByText('Wrong password')).toBeVisible();
+      await expect(currentPasswordInput(page)).toHaveAttribute(
+        'aria-invalid',
+        'true',
+      );
+      await expect(currentPasswordInput(page)).toBeFocused();
+      await expect(passwordError(page)).toHaveCount(0);
+    });
+  });
+
+  test.describe(() => {
+    test.use({ allowConsoleErrors: [/ERR_FAILED|status of 500/] });
+
+    for (const failure of ['server', 'network'] as const) {
+      test(`a ${failure} failure shows an error, keeps the fields and the session`, async ({
+        page,
+      }) => {
+        const user = await signUp();
+        await openProfile(page, user);
+        await failPasswordChange(
+          page,
+          failure === 'network'
+            ? 'network'
+            : {
+                status: 500,
+                body: { statusCode: 500, message: 'Internal server error' },
+              },
+        );
+
+        await fillPasswordForm(page, PASSWORD, NEW_PASSWORD);
+        await changePasswordButton(page).click();
+
+        await expect(passwordError(page)).toBeVisible();
+        await expect(passwordError(page)).toContainText(
+          failure === 'network'
+            ? 'Failed to connect to the server. Please try again.'
+            : 'Internal server error',
+        );
+        await expect(currentPasswordInput(page)).toHaveValue(PASSWORD);
+        await expect(newPasswordInput(page)).toHaveValue(NEW_PASSWORD);
+        await expect(confirmPasswordInput(page)).toHaveValue(NEW_PASSWORD);
+        await expect(page).toHaveURL('/profile');
+        await expect(profileLink(page, user.email)).toBeVisible();
+
+        // Editing a field hides the stale error.
+        await newPasswordInput(page).fill(`${NEW_PASSWORD}2`);
+        await expect(passwordError(page)).toHaveCount(0);
+      });
+    }
+  });
+
+  test.describe(() => {
+    test.use({ allowConsoleErrors: [/status of 409/] });
+
+    test('a concurrent change says the password was already changed, not to try again', async ({
+      page,
+    }) => {
+      const user = await signUp();
+      await openProfile(page, user);
+      await failPasswordChange(page, {
+        status: 409,
+        body: {
+          statusCode: 409,
+          message: 'The password was changed by another request, try again',
+        },
+      });
+
+      await fillPasswordForm(page, PASSWORD, NEW_PASSWORD);
+      await changePasswordButton(page).click();
+
+      await expect(passwordError(page)).toContainText(
+        PASSWORD_CHANGED_ELSEWHERE,
+      );
+      await expect(passwordError(page)).not.toContainText('try again');
+    });
+  });
+
+  test.describe(() => {
+    test.use({ allowConsoleErrors: [/status of 401/] });
+
+    test('a 401 signs out', async ({ page }) => {
+      const user = await signUp();
+      await openProfile(page, user);
+      await failPasswordChange(page, {
+        status: 401,
+        body: { statusCode: 401, message: 'Unauthorized' },
+      });
+
+      await fillPasswordForm(page, PASSWORD, NEW_PASSWORD);
+      await changePasswordButton(page).click();
+
+      await expect(page).toHaveURL('/login');
     });
   });
 

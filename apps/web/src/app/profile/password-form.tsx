@@ -6,9 +6,11 @@ import { PasswordField } from '@/components/password-field';
 import { ApiError, changePassword } from '@/lib/api';
 import { MIN_PASSWORD_LENGTH, validateNewPassword } from '@/lib/passwords';
 
-// The api's message for a wrong current password (a 400, not a 401, so it
-// isn't taken for a lost session).
-const WRONG_CURRENT_PASSWORD = 'Current password is incorrect';
+// The api's `409` says "try again", but the password was already changed by
+// another request (another tab, or a retried request that went through), so
+// the same current password would now be wrong.
+const CHANGED_ELSEWHERE =
+  "Your password was just changed in another request, so this change wasn't saved. Use your latest password the next time you sign in.";
 
 type Feedback =
   { status: 'success' } | { status: 'error'; message: string } | null;
@@ -50,7 +52,8 @@ export function PasswordForm({
   function edit(setValue: (value: string) => void) {
     return (value: string) => {
       setValue(value);
-      if (feedback?.status === 'success') setFeedback(null);
+      // A success or an error is about the values sent, not the new ones.
+      if (feedback) setFeedback(null);
     };
   }
 
@@ -84,20 +87,23 @@ export function PasswordForm({
         onUnauthorized();
         return;
       }
+      // A wrong current password is a 400 (not a 401, so it isn't taken for a
+      // lost session) that names the field.
       if (
         e instanceof ApiError &&
         e.status === 400 &&
-        e.message === WRONG_CURRENT_PASSWORD
+        e.field === 'currentPassword'
       ) {
-        setServerErrors({ currentPassword: WRONG_CURRENT_PASSWORD });
+        setServerErrors({ currentPassword: e.message });
         currentInputRef.current?.focus();
       } else {
         setFeedback({
           status: 'error',
-          message:
-            e instanceof ApiError
-              ? e.message
-              : 'Failed to connect to the server. Please try again.',
+          message: !(e instanceof ApiError)
+            ? 'Failed to connect to the server. Please try again.'
+            : e.status === 409
+              ? CHANGED_ELSEWHERE
+              : e.message,
         });
       }
     }
