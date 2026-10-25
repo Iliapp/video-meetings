@@ -10,6 +10,7 @@ import { useProfile } from '@/lib/use-profile';
 import { useSession } from '@/lib/use-session';
 import { AvatarSection } from './avatar-section';
 import { NameForm } from './name-form';
+import { PasswordForm } from './password-form';
 
 export function ProfilePage() {
   const { session, signOut } = useSession();
@@ -79,6 +80,12 @@ export function ProfilePage() {
             <NameForm
               profile={state.profile}
               saveName={saveName}
+              onUnauthorized={signOut}
+            />
+            <Separator />
+            <PasswordForm
+              email={state.profile.email}
+              token={session.token}
               onUnauthorized={signOut}
             />
           </Card>

@@ -8,8 +8,7 @@ import { PasswordField } from '@/components/password-field';
 import { TextLink } from '@/components/text-link';
 import { ApiError, register } from '@/lib/api';
 import { saveAccessToken } from '@/lib/auth-token';
-
-const MIN_PASSWORD_LENGTH = 8;
+import { MIN_PASSWORD_LENGTH, validateNewPassword } from '@/lib/passwords';
 
 export function RegisterForm() {
   const router = useRouter();
@@ -101,11 +100,7 @@ export function RegisterForm() {
           onChange={setPassword}
           autoComplete="new-password"
           description={`At least ${MIN_PASSWORD_LENGTH} characters`}
-          validate={(value) =>
-            value.length >= MIN_PASSWORD_LENGTH
-              ? null
-              : `Password must be at least ${MIN_PASSWORD_LENGTH} characters`
-          }
+          validate={validateNewPassword}
         />
 
         <Button
