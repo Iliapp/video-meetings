@@ -2,7 +2,7 @@
 
 import { ArrowRotateRight, ArrowUpFromLine, TrashBin } from '@gravity-ui/icons';
 import { Alert, AlertDialog, Button, Spinner } from '@heroui/react';
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { FileTrigger } from 'react-aria-components';
 import { UserAvatar } from '@/components/user-avatar';
 import { ApiError, UPLOAD_FAILED_MESSAGE, type Profile } from '@/lib/api';
@@ -44,6 +44,19 @@ export function AvatarSection({
   const [isRemoveOpen, setIsRemoveOpen] = useState(false);
   const [isRemoving, setIsRemoving] = useState(false);
   const [removeError, setRemoveError] = useState<string | null>(null);
+  // After a removal the dialog's trigger (Remove photo) is gone, so focus
+  // moves to the picker instead of being lost.
+  const pickerRef = useRef<HTMLButtonElement>(null);
+  const [focusPicker, setFocusPicker] = useState(false);
+  useEffect(() => {
+    if (!focusPicker) return;
+    // After the dialog's own focus restore, which runs as it closes.
+    const timer = setTimeout(() => {
+      pickerRef.current?.focus();
+      setFocusPicker(false);
+    }, 0);
+    return () => clearTimeout(timer);
+  }, [focusPicker]);
 
   const preview = upload.status === 'uploading' ? upload.preview : null;
   // Free the preview once it is replaced or the page goes away.
@@ -85,6 +98,7 @@ export function AvatarSection({
       await removeAvatar();
       setIsRemoveOpen(false);
       setUpload({ status: 'done', message: 'Photo removed' });
+      setFocusPicker(true);
     } catch (e) {
       if (e instanceof ApiError && e.status === 401) {
         onUnauthorized();
@@ -126,6 +140,7 @@ export function AvatarSection({
           }}
         >
           <Button
+            ref={pickerRef}
             className="h-11 max-sm:flex-1"
             variant="secondary"
             isDisabled={isUploading}

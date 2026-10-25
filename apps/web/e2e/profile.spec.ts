@@ -632,6 +632,8 @@ test.describe('keyboard', () => {
 
     await expect(removeDialog(page)).toHaveCount(0);
     await expectInitials(headerAvatar(page), emailInitial(user));
+    // Remove photo is gone, so focus moves to the picker, not the page.
+    await expect(uploadPhotoButton(page)).toBeFocused();
   });
 });
 
