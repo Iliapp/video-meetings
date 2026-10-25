@@ -476,6 +476,8 @@ test.describe('avatar upload', () => {
 
         await tryAgainButton(page).click();
 
+        // The error goes as soon as the retry starts; wait for it to finish.
+        await expect(page.getByText('Photo updated')).toBeVisible();
         await expect(avatarError(page)).toHaveCount(0);
         const newUrl = await avatarUrlOf(user);
         expect(newUrl).not.toBe(oldUrl);
