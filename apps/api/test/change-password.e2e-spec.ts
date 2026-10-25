@@ -85,9 +85,11 @@ describe('Change password (e2e)', () => {
         newPassword: NEW_PASSWORD,
       }).expect(400);
 
-      expect((res.body as { message: unknown }).message).toBe(
-        'Current password is incorrect',
-      );
+      // The web finds the field by `field`, not by the message text.
+      expect(res.body).toMatchObject({
+        message: 'Current password is incorrect',
+        field: 'currentPassword',
+      });
       await login(user.email, PASSWORD).expect(200);
       await login(user.email, NEW_PASSWORD).expect(401);
       await request(server())

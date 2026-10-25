@@ -51,9 +51,14 @@ describe('ChangePasswordHandler', () => {
     queryBus.execute.mockResolvedValue(user);
     passwords.verify.mockResolvedValue(false);
 
-    await expect(change()).rejects.toThrow(
-      new BadRequestException('Current password is incorrect'),
-    );
+    const error: unknown = await change().catch((e: unknown) => e);
+    expect(error).toBeInstanceOf(BadRequestException);
+    expect((error as BadRequestException).getResponse()).toEqual({
+      statusCode: 400,
+      error: 'Bad Request',
+      message: 'Current password is incorrect',
+      field: 'currentPassword',
+    });
     expect(commandBus.execute).not.toHaveBeenCalled();
   });
 

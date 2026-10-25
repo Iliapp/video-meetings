@@ -28,7 +28,14 @@ export class ChangePasswordHandler implements ICommandHandler<ChangePasswordComm
       throw new NotFoundException('User not found');
     }
     if (!(await this.passwords.verify(currentPassword, user.passwordHash))) {
-      throw new BadRequestException('Current password is incorrect');
+      // `field` lets the web show it on the current password field without
+      // matching the message text.
+      throw new BadRequestException({
+        statusCode: 400,
+        error: 'Bad Request',
+        message: 'Current password is incorrect',
+        field: 'currentPassword',
+      });
     }
     const passwordHash = await this.passwords.hash(newPassword);
     await this.commandBus.execute(
