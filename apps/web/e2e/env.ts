@@ -14,6 +14,10 @@ export const RECORDINGS_MAX_BYTES = 64 * 1024;
 // recover from an expired URL.
 export const RECORDING_URL_TTL_SECONDS = 4;
 
+// The same avatar limit for the api and the web pre-check (5 MB in
+// production), low enough to test the size error with a small file.
+export const AVATAR_MAX_BYTES = 16 * 1024;
+
 export const TEST_DATABASE_URL =
   process.env.TEST_DATABASE_URL ??
   'postgresql://postgres:postgres@localhost:5432/video_meetings_test';
