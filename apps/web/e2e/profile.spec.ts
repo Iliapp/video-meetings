@@ -83,19 +83,23 @@ function watchAvatarUploads(page: Page) {
   return sent;
 }
 
-// Holds the avatar upload until `release()` is called, so the preview and the
-// in-progress state can be seen.
-async function holdAvatarUpload(page: Page) {
+// Holds the `method` requests to `url` until `release()` is called, so the
+// in-progress state can be seen and other requests can finish first.
+async function holdRequests(page: Page, url: string, method: string) {
   let release!: () => void;
   const released = new Promise<void>((resolve) => (release = resolve));
   let held: Route | undefined;
-  await page.route(AVATAR_ENDPOINT, (route) => {
-    if (route.request().method() !== 'PUT') return route.continue();
+  await page.route(url, (route) => {
+    if (route.request().method() !== method) return route.continue();
     held = route;
     return released.then(() => route.continue().catch(() => {}));
   });
   return { release, isHeld: () => held !== undefined };
 }
+const holdAvatarUpload = (page: Page) =>
+  holdRequests(page, AVATAR_ENDPOINT, 'PUT');
+const holdNameSave = (page: Page) =>
+  holdRequests(page, `${API_URL}/users/me`, 'PATCH');
 
 // The avatar shows the image only once it has loaded (Radix Avatar renders the
 // <img> then and drops the initials).
@@ -433,9 +437,10 @@ test.describe('avatar upload', () => {
 
   test.describe(() => {
     // One pattern: Playwright reads a two-item array as [value, options].
-    test.use({ allowConsoleErrors: [/ERR_FAILED|status of 500/] });
+    test.use({ allowConsoleErrors: [/ERR_FAILED|status of (500|409)/] });
 
-    for (const failure of ['server', 'network'] as const) {
+    // A 409 is a concurrent change of the avatar, so trying again can work.
+    for (const failure of ['server', 'network', 'conflict'] as const) {
       test(`a ${failure} failure shows an error with Try again and keeps the previous avatar`, async ({
         page,
       }) => {
@@ -447,13 +452,16 @@ test.describe('avatar upload', () => {
           if (route.request().method() !== 'PUT' || failed)
             return route.continue();
           failed = true;
-          return failure === 'network'
-            ? route.abort('failed')
-            : route.fulfill({
-                status: 500,
-                headers: { 'Access-Control-Allow-Origin': WEB_URL },
-                json: { statusCode: 500, message: 'Internal server error' },
-              });
+          if (failure === 'network') return route.abort('failed');
+          const [status, message] =
+            failure === 'server'
+              ? [500, 'Internal server error']
+              : [409, 'The avatar was changed by another request, try again'];
+          return route.fulfill({
+            status,
+            headers: { 'Access-Control-Allow-Origin': WEB_URL },
+            json: { statusCode: status, message },
+          });
         });
 
         await avatarInput(page).setInputFiles(fixturePath('avatar.jpg'));
@@ -547,6 +555,55 @@ test.describe('avatar removal', () => {
   });
 });
 
+test.describe('concurrent saves', () => {
+  test('saving the name during an upload keeps the new avatar', async ({
+    page,
+  }) => {
+    const user = await signUp();
+    await openProfile(page, user);
+    const upload = await holdAvatarUpload(page);
+    await avatarInput(page).setInputFiles(fixturePath('avatar.png'));
+    await expect.poll(upload.isHeld).toBe(true);
+
+    // The name save answers first, with the profile that has no avatar yet.
+    await nameInput(page).fill('Ann Lee');
+    await saveButton(page).click();
+    await expect(success(page)).toBeVisible();
+    upload.release();
+
+    await expect(changePhotoButton(page)).toBeEnabled();
+    const avatarUrl = await avatarUrlOf(user);
+    await expectAvatarImage(pageAvatar(page), avatarUrl);
+    await expectAvatarImage(headerAvatar(page), avatarUrl);
+    await expect(profileLink(page, 'Ann Lee')).toBeVisible();
+  });
+
+  test('removing the avatar during a name save keeps the new name', async ({
+    page,
+  }) => {
+    const user = await signUp();
+    await setName(user, 'Ann Lee');
+    await uploadAvatar(user, 'avatar.png');
+    await openProfile(page, user);
+    const nameSave = await holdNameSave(page);
+    await nameInput(page).fill('Bob Stone');
+    await saveButton(page).click();
+    await expect.poll(nameSave.isHeld).toBe(true);
+
+    // The removal finishes first, while the old name is still shown.
+    await removePhotoButton(page).click();
+    await removeDialog(page).getByRole('button', { name: 'Remove' }).click();
+    await expect(removeDialog(page)).toHaveCount(0);
+    await expectInitials(headerAvatar(page), 'AL');
+    nameSave.release();
+
+    await expect(success(page)).toBeVisible();
+    await expect(profileLink(page, 'Bob Stone')).toBeVisible();
+    await expectInitials(headerAvatar(page), 'BS');
+    await expectInitials(pageAvatar(page), 'BS');
+  });
+});
+
 test.describe('initials', () => {
   for (const [name, initials] of [
     ['Ann Lee', 'AL'],
@@ -620,6 +677,8 @@ test.describe('keyboard', () => {
 
     await expect(removePhotoButton(page)).toBeVisible();
     await expectAvatarImage(headerAvatar(page), await avatarUrlOf(user));
+    // The picker is disabled during the upload; focus comes back to it.
+    await expect(changePhotoButton(page)).toBeFocused();
 
     await tabTo(page, removePhotoButton(page));
     await page.keyboard.press('Enter');

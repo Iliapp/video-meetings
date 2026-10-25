@@ -17,12 +17,16 @@ type UploadState =
   // `preview` is an object URL of the picked file, shown until it is saved.
   | { status: 'uploading'; preview: string }
   // `retryFile` is set when the same file may succeed on a second try
-  // (network or server failure), not for format or size problems.
+  // (network or server failure, or a `409` from a concurrent change), not for
+  // format or size problems.
   | { status: 'error'; message: string; retryFile?: File }
   | { status: 'done'; message: string };
 
 const isRetryable = (e: unknown) =>
-  !(e instanceof ApiError) || e.status === 0 || e.status >= 500;
+  !(e instanceof ApiError) ||
+  e.status === 0 ||
+  e.status === 409 ||
+  e.status >= 500;
 
 const errorText = (e: unknown, fallback: string) =>
   e instanceof ApiError ? e.message : fallback;
@@ -36,16 +40,17 @@ export function AvatarSection({
   onUnauthorized,
 }: {
   profile: Profile;
-  saveAvatar: (file: File) => Promise<Profile>;
-  removeAvatar: () => Promise<Profile>;
+  saveAvatar: (file: File) => Promise<unknown>;
+  removeAvatar: () => Promise<unknown>;
   onUnauthorized: () => void;
 }) {
   const [upload, setUpload] = useState<UploadState>({ status: 'idle' });
   const [isRemoveOpen, setIsRemoveOpen] = useState(false);
   const [isRemoving, setIsRemoving] = useState(false);
   const [removeError, setRemoveError] = useState<string | null>(null);
-  // After a removal the dialog's trigger (Remove photo) is gone, so focus
-  // moves to the picker instead of being lost.
+  // Focus that would be lost goes to the picker: after a removal the dialog's
+  // trigger (Remove photo) is gone, and during an upload the picker is
+  // disabled, which drops its focus to the page.
   const pickerRef = useRef<HTMLButtonElement>(null);
   const [focusPicker, setFocusPicker] = useState(false);
   useEffect(() => {
@@ -89,6 +94,9 @@ export function AvatarSection({
         retryFile: isRetryable(e) ? file : undefined,
       });
     }
+    // Unless the user moved focus to another control meanwhile.
+    const active = document.activeElement;
+    if (!active || active === document.body) setFocusPicker(true);
   }
 
   async function confirmRemove() {

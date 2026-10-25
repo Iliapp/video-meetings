@@ -33,7 +33,7 @@ export function NameForm({
   onUnauthorized,
 }: {
   profile: Profile;
-  saveName: (name: string | null) => Promise<Profile>;
+  saveName: (name: string | null) => Promise<string | null>;
   onUnauthorized: () => void;
 }) {
   const [name, setName] = useState(profile.name ?? '');
@@ -46,7 +46,7 @@ export function NameForm({
     setIsPending(true);
     try {
       const saved = await saveName(name.trim() || null);
-      setName(saved.name ?? '');
+      setName(saved ?? '');
       setFeedback({ status: 'success' });
     } catch (e) {
       if (e instanceof ApiError && e.status === 401) {
