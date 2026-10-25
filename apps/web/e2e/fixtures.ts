@@ -24,7 +24,8 @@ export interface TestRecording {
   durationSeconds: number | null;
 }
 
-const PASSWORD = 'Str0ngPassw0rd!';
+// The password every test user signs up with.
+export const PASSWORD = 'Str0ngPassw0rd!';
 
 export const fixturePath = (name: string) => join(FIXTURES_DIR, name);
 export const fixture = (name: string) => readFileSync(fixturePath(name));
@@ -168,13 +169,33 @@ export async function signIn(page: Page, user: TestUser) {
   }, user.token);
 }
 
+// Whether the api accepts these credentials, without touching the browser.
+export async function canSignIn(
+  user: TestUser,
+  password: string,
+): Promise<boolean> {
+  const res = await fetch(`${API_URL}/auth/login`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email: user.email, password }),
+  });
+  if (res.status !== 200 && res.status !== 401) {
+    throw new Error(`POST /auth/login → ${res.status} ${await res.text()}`);
+  }
+  return res.status === 200;
+}
+
 // Signs in through the login form, as a user would. Use it instead of
 // `signIn` when the test signs out, since `signIn` restores the token on
 // every page load.
-export async function signInWithForm(page: Page, user: TestUser) {
+export async function signInWithForm(
+  page: Page,
+  user: TestUser,
+  password = PASSWORD,
+) {
   await page.goto('/login');
   await page.getByRole('textbox', { name: 'Email' }).fill(user.email);
-  await page.getByLabel('Password', { exact: true }).fill(PASSWORD);
+  await page.getByLabel('Password', { exact: true }).fill(password);
   await page.getByRole('button', { name: 'Sign in' }).click();
   await expect(page).toHaveURL('/');
 }
