@@ -1,4 +1,4 @@
-import { NotFoundException, UnauthorizedException } from '@nestjs/common';
+import { BadRequestException, NotFoundException } from '@nestjs/common';
 import { CommandBus, QueryBus } from '@nestjs/cqrs';
 import { Test } from '@nestjs/testing';
 import { User } from '../../../generated/prisma/client';
@@ -47,12 +47,12 @@ describe('ChangePasswordHandler', () => {
     );
   });
 
-  it('throws 401 and keeps the password when the current one is wrong', async () => {
+  it('throws 400 and keeps the password when the current one is wrong', async () => {
     queryBus.execute.mockResolvedValue(user);
     passwords.verify.mockResolvedValue(false);
 
     await expect(change()).rejects.toThrow(
-      new UnauthorizedException('Current password is incorrect'),
+      new BadRequestException('Current password is incorrect'),
     );
     expect(commandBus.execute).not.toHaveBeenCalled();
   });

@@ -76,19 +76,24 @@ describe('Change password (e2e)', () => {
         .expect(200);
     });
 
-    it('returns 401 when the current password is wrong and keeps the old one', async () => {
+    // Not 401: the web treats a 401 as a lost session and signs out.
+    it('returns 400 when the current password is wrong, keeps the old one and the session', async () => {
       const user = await signUp();
 
       const res = await changePassword(user, {
         currentPassword: 'Wr0ngPassword!',
         newPassword: NEW_PASSWORD,
-      }).expect(401);
+      }).expect(400);
 
       expect((res.body as { message: unknown }).message).toBe(
         'Current password is incorrect',
       );
       await login(user.email, PASSWORD).expect(200);
       await login(user.email, NEW_PASSWORD).expect(401);
+      await request(server())
+        .get('/users/me')
+        .auth(user.token, { type: 'bearer' })
+        .expect(200);
     });
 
     it('returns 400 when the new password is shorter than 8 characters and keeps the old one', async () => {

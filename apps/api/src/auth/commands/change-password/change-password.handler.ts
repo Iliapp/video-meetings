@@ -1,4 +1,4 @@
-import { NotFoundException, UnauthorizedException } from '@nestjs/common';
+import { BadRequestException, NotFoundException } from '@nestjs/common';
 import {
   CommandBus,
   CommandHandler,
@@ -28,7 +28,7 @@ export class ChangePasswordHandler implements ICommandHandler<ChangePasswordComm
       throw new NotFoundException('User not found');
     }
     if (!(await this.passwords.verify(currentPassword, user.passwordHash))) {
-      throw new UnauthorizedException('Current password is incorrect');
+      throw new BadRequestException('Current password is incorrect');
     }
     const passwordHash = await this.passwords.hash(newPassword);
     await this.commandBus.execute(
