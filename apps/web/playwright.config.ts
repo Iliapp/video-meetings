@@ -2,6 +2,8 @@ import { join } from 'node:path';
 import { defineConfig, devices } from '@playwright/test';
 import {
   API_PORT,
+  AVATARS_DIR,
+  AVATAR_MAX_BYTES,
   API_URL,
   RECORDINGS_DIR,
   RECORDING_URL_TTL_SECONDS,
@@ -36,7 +38,8 @@ export default defineConfig({
   ],
   webServer: [
     {
-      // The api against the e2e database, with its own recordings directory.
+      // The api against the e2e database, with its own recordings and avatars
+      // directories.
       command: 'pnpm exec prisma migrate deploy && pnpm exec nest start',
       cwd: apiDir,
       // Any HTTP answer (401 here) means it is up.
@@ -51,6 +54,8 @@ export default defineConfig({
         RECORDINGS_DIR,
         RECORDINGS_MAX_BYTES: String(RECORDINGS_MAX_BYTES),
         RECORDING_URL_TTL: `${RECORDING_URL_TTL_SECONDS}s`,
+        AVATARS_DIR,
+        AVATAR_MAX_BYTES: String(AVATAR_MAX_BYTES),
       },
     },
     {
@@ -65,6 +70,7 @@ export default defineConfig({
         NEXT_DIST_DIR: '.next-e2e',
         NEXT_PUBLIC_API_URL: API_URL,
         NEXT_PUBLIC_RECORDINGS_MAX_BYTES: String(RECORDINGS_MAX_BYTES),
+        NEXT_PUBLIC_AVATAR_MAX_BYTES: String(AVATAR_MAX_BYTES),
       },
     },
   ],

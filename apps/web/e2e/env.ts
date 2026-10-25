@@ -25,7 +25,10 @@ export const TEST_DATABASE_URL =
 // Gitignored; the api empties its incoming/ folder on start.
 export const RECORDINGS_DIR = join(__dirname, '..', '.e2e', 'recordings');
 
-// Media fixtures shared with the api e2e tests.
+// Gitignored, like RECORDINGS_DIR.
+export const AVATARS_DIR = join(__dirname, '..', '.e2e', 'avatars');
+
+// Media and avatar image fixtures shared with the api e2e tests.
 export const FIXTURES_DIR = join(
   __dirname,
   '..',
