@@ -738,6 +738,15 @@ test.describe('password change', () => {
       await expect(profileLink(page, user.email)).toBeVisible();
       expect(await canSignIn(user, PASSWORD)).toBe(true);
       expect(await canSignIn(user, NEW_PASSWORD)).toBe(false);
+
+      // Fixing it and pressing the button right away works.
+      await currentPasswordInput(page).fill(PASSWORD);
+      await changePasswordButton(page).click();
+
+      await expect(passwordChanged(page)).toBeVisible();
+      await expect(page.getByText(WRONG_CURRENT_PASSWORD)).toHaveCount(0);
+      expect(sent).toHaveLength(2);
+      expect(await canSignIn(user, NEW_PASSWORD)).toBe(true);
     });
   });
 

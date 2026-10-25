@@ -35,7 +35,8 @@ export function PasswordForm({
   // react-aria's default shows them on submit but clears them only on blur;
   // the layout shift then makes a click on the button miss.
   const [isSubmitted, setIsSubmitted] = useState(false);
-  // Server errors per field name; react-aria shows them until the field changes.
+  // Server errors per field name. Cleared on edit, not left to react-aria,
+  // which clears them only on blur (the same layout shift as above).
   const [serverErrors, setServerErrors] = useState<Record<string, string>>({});
   const currentInputRef = useRef<HTMLInputElement>(null);
   const newInputRef = useRef<HTMLInputElement>(null);
@@ -155,7 +156,10 @@ export function PasswordForm({
         label="Current password"
         name="currentPassword"
         value={currentPassword}
-        onChange={edit(setCurrentPassword)}
+        onChange={edit((value) => {
+          setCurrentPassword(value);
+          setServerErrors({});
+        })}
         autoComplete="current-password"
         inputRef={currentInputRef}
         validate={isSubmitted ? validateCurrent : noError}
