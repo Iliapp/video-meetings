@@ -1,18 +1,21 @@
 'use client';
 
 import { ArrowLeft, ArrowRotateRight } from '@gravity-ui/icons';
-import { Alert, Button, Card, Skeleton } from '@heroui/react';
+import { Alert, Button, Card, Separator, Skeleton } from '@heroui/react';
 import NextLink from 'next/link';
 import { useEffect } from 'react';
 import { AppHeader } from '@/components/app-header';
 import { ApiError } from '@/lib/api';
 import { useProfile } from '@/lib/use-profile';
 import { useSession } from '@/lib/use-session';
+import { AvatarSection } from './avatar-section';
 import { NameForm } from './name-form';
 
 export function ProfilePage() {
   const { session, signOut } = useSession();
-  const { state, reload, saveName } = useProfile(session?.token);
+  const { state, reload, saveName, saveAvatar, removeAvatar } = useProfile(
+    session?.token,
+  );
 
   useEffect(() => {
     if (session === null) signOut();
@@ -65,7 +68,14 @@ export function ProfilePage() {
           </Alert>
         )}
         {state.status === 'ready' && (
-          <Card className="min-w-0 p-5 sm:p-6">
+          <Card className="min-w-0 gap-6 p-5 sm:p-6">
+            <AvatarSection
+              profile={state.profile}
+              saveAvatar={saveAvatar}
+              removeAvatar={removeAvatar}
+              onUnauthorized={signOut}
+            />
+            <Separator />
             <NameForm
               profile={state.profile}
               saveName={saveName}

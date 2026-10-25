@@ -30,7 +30,7 @@ export const fixturePath = (name: string) => join(FIXTURES_DIR, name);
 export const fixture = (name: string) => readFileSync(fixturePath(name));
 
 async function api<T>(
-  method: 'GET' | 'POST' | 'PATCH' | 'DELETE',
+  method: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE',
   path: string,
   { token, json, form }: { token?: string; json?: unknown; form?: FormData },
 ): Promise<T> {
@@ -105,6 +105,29 @@ export function setName(user: TestUser, name: string | null): Promise<void> {
   return api<void>('PATCH', '/users/me', {
     token: user.token,
     json: { name },
+  });
+}
+
+export interface TestProfile {
+  id: string;
+  email: string;
+  name: string | null;
+  avatarUrl: string | null;
+}
+
+export function getProfile(user: TestUser): Promise<TestProfile> {
+  return api<TestProfile>('GET', '/users/me', { token: user.token });
+}
+
+export function uploadAvatar(
+  user: TestUser,
+  name: string,
+): Promise<TestProfile> {
+  const form = new FormData();
+  form.append('file', new Blob([fixture(name)]), name);
+  return api<TestProfile>('PUT', '/users/me/avatar', {
+    token: user.token,
+    form,
   });
 }
 

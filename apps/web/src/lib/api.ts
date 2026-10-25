@@ -74,18 +74,22 @@ function errorMessage(data: unknown, status: number): string {
 }
 
 async function request<T>(
-  method: 'GET' | 'POST' | 'PATCH' | 'DELETE',
+  method: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE',
   path: string,
   { body, token }: { body?: unknown; token?: string } = {},
 ): Promise<T> {
+  // FormData goes as is: the browser sets the multipart Content-Type.
+  const isForm = body instanceof FormData;
   const headers: Record<string, string> = {};
-  if (body !== undefined) headers['Content-Type'] = 'application/json';
+  if (body !== undefined && !isForm) {
+    headers['Content-Type'] = 'application/json';
+  }
   if (token) headers.Authorization = `Bearer ${token}`;
 
   const response = await fetch(`${API_URL}${path}`, {
     method,
     headers,
-    body: body === undefined ? undefined : JSON.stringify(body),
+    body: isForm ? body : body === undefined ? undefined : JSON.stringify(body),
   });
   const data: unknown = await response.json().catch(() => null);
 
@@ -110,6 +114,26 @@ export const updateProfile = (
   token: string,
   changes: { name: string | null },
 ) => request<Profile>('PATCH', '/users/me', { body: changes, token });
+
+/**
+ * Replaces the avatar with a JPG, PNG or WebP and returns the profile with the
+ * new `avatarUrl`. `415` for another format, `413` above the limit; a network
+ * failure rejects with `ApiError` status 0.
+ */
+export async function uploadAvatar(token: string, file: File) {
+  const body = new FormData();
+  body.append('file', file);
+  try {
+    return await request<Profile>('PUT', '/users/me/avatar', { body, token });
+  } catch (error) {
+    if (error instanceof ApiError) throw error;
+    throw new ApiError(0, UPLOAD_FAILED_MESSAGE);
+  }
+}
+
+/** `204`, also when there is no avatar. */
+export const deleteAvatar = (token: string) =>
+  request<void>('DELETE', '/users/me/avatar', { token });
 
 export const listMeetings = (token: string) =>
   request<Meeting[]>('GET', '/meetings', { token });

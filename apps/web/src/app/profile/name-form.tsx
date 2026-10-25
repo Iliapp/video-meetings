@@ -12,7 +12,6 @@ import {
   TextField,
 } from '@heroui/react';
 import { useState, type FormEvent } from 'react';
-import { UserAvatar } from '@/components/user-avatar';
 import { ApiError, type Profile } from '@/lib/api';
 
 // Same limit as the api: 1-100 characters after trimming, counted in code
@@ -26,7 +25,7 @@ const validateName = (value: string) =>
 type Feedback =
   { status: 'success' } | { status: 'error'; message: string } | null;
 
-// The read-only email and the editable name. A blank name is sent as `null`,
+// The read-only email and the editable name; the avatar is in AvatarSection. A blank name is sent as `null`,
 // which clears it so the app shows the email instead.
 export function NameForm({
   profile,
@@ -34,7 +33,7 @@ export function NameForm({
   onUnauthorized,
 }: {
   profile: Profile;
-  saveName: (name: string | null) => Promise<Profile>;
+  saveName: (name: string | null) => Promise<string | null>;
   onUnauthorized: () => void;
 }) {
   const [name, setName] = useState(profile.name ?? '');
@@ -47,7 +46,7 @@ export function NameForm({
     setIsPending(true);
     try {
       const saved = await saveName(name.trim() || null);
-      setName(saved.name ?? '');
+      setName(saved ?? '');
       setFeedback({ status: 'success' });
     } catch (e) {
       if (e instanceof ApiError && e.status === 401) {
@@ -67,24 +66,6 @@ export function NameForm({
 
   return (
     <Form className="flex flex-col gap-6" onSubmit={(e) => void onSubmit(e)}>
-      <div className="flex min-w-0 items-center gap-4">
-        <UserAvatar
-          name={profile.name}
-          email={profile.email}
-          avatarUrl={profile.avatarUrl}
-          size="lg"
-          className="size-16 shrink-0 rounded-full text-xl"
-        />
-        <div className="flex min-w-0 flex-col">
-          <p className="font-semibold break-words">
-            {profile.name ?? profile.email}
-          </p>
-          {profile.name && (
-            <p className="text-sm break-all text-muted">{profile.email}</p>
-          )}
-        </div>
-      </div>
-
       {feedback?.status === 'success' && (
         <Alert role="status" status="success">
           <Alert.Indicator />
