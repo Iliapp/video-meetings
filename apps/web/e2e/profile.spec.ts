@@ -1,11 +1,13 @@
 import type { Locator, Page, Request, Route } from '@playwright/test';
 import { API_URL, AVATAR_MAX_BYTES, WEB_URL } from './env';
 import {
+  canSignIn,
   expect,
   expectNoHorizontalScroll,
   fixture,
   fixturePath,
   getProfile,
+  PASSWORD,
   setName,
   signIn,
   signInWithForm,
@@ -21,6 +23,13 @@ const AVATAR_TOO_LARGE = 'File is larger than 16 KB';
 const AVATAR_UPLOAD_FAILED =
   'Upload failed. Check your connection and try again.';
 const AVATAR_ENDPOINT = `${API_URL}/users/me/avatar`;
+const PASSWORD_ENDPOINT = `${API_URL}/auth/change-password`;
+const NEW_PASSWORD = 'N3wPassw0rd!';
+const PASSWORD_TOO_SHORT = 'Password must be at least 8 characters';
+const PASSWORDS_DONT_MATCH = "Passwords don't match";
+const WRONG_CURRENT_PASSWORD = 'Current password is incorrect';
+const PASSWORD_CHANGED_ELSEWHERE =
+  "Your password was just changed in another request, so this change wasn't saved. Use your latest password the next time you sign in.";
 
 const header = (page: Page) => page.getByRole('banner');
 // The header link to /profile is named by what it shows: the name, or the
@@ -51,6 +60,16 @@ const alertWith = (page: Page, text: string) =>
 const avatarError = (page: Page) => alertWith(page, "Couldn't upload photo");
 const tryAgainButton = (page: Page) =>
   page.getByRole('button', { name: 'Try again' });
+// Password inputs have no textbox role, so find them by their label.
+const currentPasswordInput = (page: Page) =>
+  page.getByLabel('Current password', { exact: true });
+const newPasswordInput = (page: Page) =>
+  page.getByLabel('New password', { exact: true });
+const confirmPasswordInput = (page: Page) =>
+  page.getByLabel('Confirm new password', { exact: true });
+const changePasswordButton = (page: Page) =>
+  page.getByRole('button', { name: 'Change password' });
+const passwordChanged = (page: Page) => page.getByText('Password changed');
 
 // The email's first letter, as the initials of a user without a name.
 const emailInitial = (user: TestUser) => user.email[0].toUpperCase();
@@ -71,6 +90,27 @@ function watchProfileUpdates(page: Page) {
       sent.push(request);
   });
   return sent;
+}
+
+// Records the POST /auth/change-password requests the page sends.
+function watchPasswordChanges(page: Page) {
+  const sent: Request[] = [];
+  page.on('request', (request) => {
+    if (request.method() === 'POST' && request.url() === PASSWORD_ENDPOINT)
+      sent.push(request);
+  });
+  return sent;
+}
+
+async function fillPasswordForm(
+  page: Page,
+  current: string,
+  next: string,
+  confirmation = next,
+) {
+  await currentPasswordInput(page).fill(current);
+  await newPasswordInput(page).fill(next);
+  await confirmPasswordInput(page).fill(confirmation);
 }
 
 // Records the PUT /users/me/avatar requests the page sends.
@@ -637,7 +677,293 @@ test.describe('initials', () => {
   });
 });
 
+test.describe('password change', () => {
+  test('changes the password, stays signed in and signs in only with the new one', async ({
+    page,
+  }) => {
+    const user = await signUp();
+    await signInWithForm(page, user);
+    await profileLink(page, user.email).click();
+    await expect(page).toHaveURL('/profile');
+    await markWindow(page);
+    const sent = watchPasswordChanges(page);
+
+    await fillPasswordForm(page, PASSWORD, NEW_PASSWORD);
+    await changePasswordButton(page).click();
+
+    await expect(passwordChanged(page)).toBeVisible();
+    expect(sent).toHaveLength(1);
+    expect(sent[0].postDataJSON()).toEqual({
+      currentPassword: PASSWORD,
+      newPassword: NEW_PASSWORD,
+    });
+    // The form clears; the user stays on the page, signed in.
+    await expect(currentPasswordInput(page)).toHaveValue('');
+    await expect(newPasswordInput(page)).toHaveValue('');
+    await expect(confirmPasswordInput(page)).toHaveValue('');
+    await expect(page).toHaveURL('/profile');
+    await expect(profileLink(page, user.email)).toBeVisible();
+    await expectSameWindow(page);
+    await page.reload();
+    await expect(nameInput(page)).toBeEditable();
+
+    expect(await canSignIn(user, PASSWORD)).toBe(false);
+    expect(await canSignIn(user, NEW_PASSWORD)).toBe(true);
+
+    await header(page).getByRole('button', { name: 'Sign out' }).click();
+    await expect(page).toHaveURL('/login');
+    await signInWithForm(page, user, NEW_PASSWORD);
+    await expect(greeting(page)).toHaveText(user.email);
+  });
+
+  test.describe(() => {
+    test.use({ allowConsoleErrors: [/status of 400/] });
+
+    test('a wrong current password shows a field error and keeps the password', async ({
+      page,
+    }) => {
+      const user = await signUp();
+      await openProfile(page, user);
+      const sent = watchPasswordChanges(page);
+
+      await fillPasswordForm(page, 'Wr0ngPassw0rd!', NEW_PASSWORD);
+      await changePasswordButton(page).click();
+
+      await expect(page.getByText(WRONG_CURRENT_PASSWORD)).toBeVisible();
+      await expect(currentPasswordInput(page)).toHaveAttribute(
+        'aria-invalid',
+        'true',
+      );
+      await expect(passwordChanged(page)).toHaveCount(0);
+      expect(sent).toHaveLength(1);
+      await expect(page).toHaveURL('/profile');
+      await expect(profileLink(page, user.email)).toBeVisible();
+      expect(await canSignIn(user, PASSWORD)).toBe(true);
+      expect(await canSignIn(user, NEW_PASSWORD)).toBe(false);
+
+      // Fixing it and pressing the button right away works.
+      await currentPasswordInput(page).fill(PASSWORD);
+      await changePasswordButton(page).click();
+
+      await expect(passwordChanged(page)).toBeVisible();
+      await expect(page.getByText(WRONG_CURRENT_PASSWORD)).toHaveCount(0);
+      expect(sent).toHaveLength(2);
+      expect(await canSignIn(user, NEW_PASSWORD)).toBe(true);
+    });
+  });
+
+  // Answers the next password change with `status` and `body` (or a network
+  // failure), so the error states can be checked.
+  async function failPasswordChange(
+    page: Page,
+    failure: { status: number; body: object } | 'network',
+  ) {
+    await page.route(PASSWORD_ENDPOINT, (route) => {
+      if (route.request().method() !== 'POST') return route.continue();
+      if (failure === 'network') return route.abort('failed');
+      return route.fulfill({
+        status: failure.status,
+        headers: { 'Access-Control-Allow-Origin': WEB_URL },
+        json: failure.body,
+      });
+    });
+  }
+  const passwordError = (page: Page) =>
+    alertWith(page, "Couldn't change your password");
+
+  test.describe(() => {
+    test.use({ allowConsoleErrors: [/status of 400/] });
+
+    test('the wrong current password error is found by its field, not its text', async ({
+      page,
+    }) => {
+      const user = await signUp();
+      await openProfile(page, user);
+      await failPasswordChange(page, {
+        status: 400,
+        body: {
+          statusCode: 400,
+          message: 'Wrong password',
+          field: 'currentPassword',
+        },
+      });
+
+      await fillPasswordForm(page, PASSWORD, NEW_PASSWORD);
+      await changePasswordButton(page).click();
+
+      await expect(page.getByText('Wrong password')).toBeVisible();
+      await expect(currentPasswordInput(page)).toHaveAttribute(
+        'aria-invalid',
+        'true',
+      );
+      await expect(currentPasswordInput(page)).toBeFocused();
+      await expect(passwordError(page)).toHaveCount(0);
+    });
+  });
+
+  test.describe(() => {
+    test.use({ allowConsoleErrors: [/ERR_FAILED|status of 500/] });
+
+    for (const failure of ['server', 'network'] as const) {
+      test(`a ${failure} failure shows an error, keeps the fields and the session`, async ({
+        page,
+      }) => {
+        const user = await signUp();
+        await openProfile(page, user);
+        await failPasswordChange(
+          page,
+          failure === 'network'
+            ? 'network'
+            : {
+                status: 500,
+                body: { statusCode: 500, message: 'Internal server error' },
+              },
+        );
+
+        await fillPasswordForm(page, PASSWORD, NEW_PASSWORD);
+        await changePasswordButton(page).click();
+
+        await expect(passwordError(page)).toBeVisible();
+        await expect(passwordError(page)).toContainText(
+          failure === 'network'
+            ? 'Failed to connect to the server. Please try again.'
+            : 'Internal server error',
+        );
+        await expect(currentPasswordInput(page)).toHaveValue(PASSWORD);
+        await expect(newPasswordInput(page)).toHaveValue(NEW_PASSWORD);
+        await expect(confirmPasswordInput(page)).toHaveValue(NEW_PASSWORD);
+        await expect(page).toHaveURL('/profile');
+        await expect(profileLink(page, user.email)).toBeVisible();
+
+        // Editing a field hides the stale error.
+        await newPasswordInput(page).fill(`${NEW_PASSWORD}2`);
+        await expect(passwordError(page)).toHaveCount(0);
+      });
+    }
+  });
+
+  test.describe(() => {
+    test.use({ allowConsoleErrors: [/status of 409/] });
+
+    test('a concurrent change says the password was already changed, not to try again', async ({
+      page,
+    }) => {
+      const user = await signUp();
+      await openProfile(page, user);
+      await failPasswordChange(page, {
+        status: 409,
+        body: {
+          statusCode: 409,
+          message: 'The password was changed by another request, try again',
+        },
+      });
+
+      await fillPasswordForm(page, PASSWORD, NEW_PASSWORD);
+      await changePasswordButton(page).click();
+
+      await expect(passwordError(page)).toContainText(
+        PASSWORD_CHANGED_ELSEWHERE,
+      );
+      await expect(passwordError(page)).not.toContainText('try again');
+    });
+  });
+
+  test.describe(() => {
+    test.use({ allowConsoleErrors: [/status of 401/] });
+
+    test('a 401 signs out', async ({ page }) => {
+      const user = await signUp();
+      await openProfile(page, user);
+      await failPasswordChange(page, {
+        status: 401,
+        body: { statusCode: 401, message: 'Unauthorized' },
+      });
+
+      await fillPasswordForm(page, PASSWORD, NEW_PASSWORD);
+      await changePasswordButton(page).click();
+
+      await expect(page).toHaveURL('/login');
+    });
+  });
+
+  test('a new password under 8 characters shows a field error and sends no request', async ({
+    page,
+  }) => {
+    const user = await signUp();
+    await openProfile(page, user);
+    const sent = watchPasswordChanges(page);
+
+    await fillPasswordForm(page, PASSWORD, 'a'.repeat(7));
+    await changePasswordButton(page).click();
+
+    await expect(page.getByText(PASSWORD_TOO_SHORT)).toBeVisible();
+    await expect(newPasswordInput(page)).toHaveAttribute(
+      'aria-invalid',
+      'true',
+    );
+    await expect(passwordChanged(page)).toHaveCount(0);
+    expect(sent).toHaveLength(0);
+
+    // Exactly 8 characters is allowed.
+    await fillPasswordForm(page, PASSWORD, 'a'.repeat(8));
+    await changePasswordButton(page).click();
+
+    await expect(passwordChanged(page)).toBeVisible();
+    await expect(page.getByText(PASSWORD_TOO_SHORT)).toHaveCount(0);
+    expect(sent).toHaveLength(1);
+    expect(await canSignIn(user, 'a'.repeat(8))).toBe(true);
+  });
+
+  test('a confirmation that does not match shows a field error and sends no request', async ({
+    page,
+  }) => {
+    const user = await signUp();
+    await openProfile(page, user);
+    const sent = watchPasswordChanges(page);
+
+    await fillPasswordForm(page, PASSWORD, NEW_PASSWORD, `${NEW_PASSWORD}x`);
+    await changePasswordButton(page).click();
+
+    await expect(page.getByText(PASSWORDS_DONT_MATCH)).toBeVisible();
+    await expect(confirmPasswordInput(page)).toHaveAttribute(
+      'aria-invalid',
+      'true',
+    );
+    await expect(passwordChanged(page)).toHaveCount(0);
+    expect(sent).toHaveLength(0);
+    expect(await canSignIn(user, PASSWORD)).toBe(true);
+  });
+});
+
 test.describe('keyboard', () => {
+  test('changes the password with keyboard only', async ({ page }) => {
+    const user = await signUp();
+    await openProfile(page, user);
+
+    await tabTo(page, currentPasswordInput(page));
+    await page.keyboard.type(PASSWORD);
+    await tabTo(page, newPasswordInput(page));
+    await page.keyboard.type(NEW_PASSWORD);
+    await tabTo(page, confirmPasswordInput(page));
+    await page.keyboard.type(NEW_PASSWORD);
+    await page.keyboard.press('Enter');
+
+    await expect(passwordChanged(page)).toBeVisible();
+    expect(await canSignIn(user, NEW_PASSWORD)).toBe(true);
+
+    // The submit button is reachable too, and a field error shows.
+    await currentPasswordInput(page).focus();
+    await page.keyboard.type(NEW_PASSWORD);
+    await tabTo(page, newPasswordInput(page));
+    await page.keyboard.type('short');
+    await tabTo(page, confirmPasswordInput(page));
+    await page.keyboard.type('short');
+    await tabTo(page, changePasswordButton(page));
+    await page.keyboard.press('Enter');
+
+    await expect(page.getByText(PASSWORD_TOO_SHORT)).toBeVisible();
+  });
+
   test('opens the profile, saves a name and sees the result with keyboard only', async ({
     page,
   }) => {
@@ -748,6 +1074,28 @@ test.describe('layout', () => {
 
       await removePhotoButton(page).click();
       await expect(removeDialog(page)).toBeVisible();
+      await expectNoHorizontalScroll(page);
+    });
+
+    test(`the password form has no horizontal scroll at ${width} px`, async ({
+      page,
+    }) => {
+      const user = await signUp();
+      await page.setViewportSize({ width, height: 900 });
+
+      await openProfile(page, user);
+
+      await expect(changePasswordButton(page)).toBeVisible();
+      await expectNoHorizontalScroll(page);
+
+      await fillPasswordForm(page, PASSWORD, 'short', 'other');
+      await changePasswordButton(page).click();
+      await expect(page.getByText(PASSWORD_TOO_SHORT)).toBeVisible();
+      await expectNoHorizontalScroll(page);
+
+      await fillPasswordForm(page, PASSWORD, NEW_PASSWORD);
+      await changePasswordButton(page).click();
+      await expect(passwordChanged(page)).toBeVisible();
       await expectNoHorizontalScroll(page);
     });
   }

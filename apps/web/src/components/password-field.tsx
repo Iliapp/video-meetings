@@ -16,6 +16,8 @@ export function PasswordField({
   onChange,
   autoComplete,
   validate,
+  label = 'Password',
+  name = 'password',
   description,
   inputRef,
 }: {
@@ -23,6 +25,9 @@ export function PasswordField({
   onChange: (value: string) => void;
   autoComplete: 'current-password' | 'new-password';
   validate: (value: string) => string | null;
+  label?: string;
+  /** Also the key for the parent `Form`'s `validationErrors`. */
+  name?: string;
   description?: string;
   inputRef?: Ref<HTMLInputElement>;
 }) {
@@ -33,13 +38,13 @@ export function PasswordField({
       fullWidth
       className="gap-2"
       isRequired
-      name="password"
+      name={name}
       type={isVisible ? 'text' : 'password'}
       value={value}
       onChange={onChange}
       validate={validate}
     >
-      <Label>Password</Label>
+      <Label>{label}</Label>
       <InputGroup fullWidth className="h-12">
         <InputGroup.Input ref={inputRef} autoComplete={autoComplete} />
         <InputGroup.Suffix className="pe-0.5">
