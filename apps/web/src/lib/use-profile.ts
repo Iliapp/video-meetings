@@ -1,7 +1,14 @@
 'use client';
 
 import { useCallback, useEffect, useSyncExternalStore } from 'react';
-import { ApiError, getProfile, updateProfile, type Profile } from './api';
+import {
+  ApiError,
+  deleteAvatar,
+  getProfile,
+  updateProfile,
+  uploadAvatar,
+  type Profile,
+} from './api';
 
 export type ProfileState =
   | { status: 'loading' }
@@ -49,18 +56,50 @@ function load(token: string) {
   );
 }
 
+// Runs a change and, on success, shows its profile to every reader.
+async function save(
+  token: string | null | undefined,
+  change: (token: string) => Promise<Profile>,
+): Promise<Profile> {
+  // A 401 like the api's, so callers sign out on the same path.
+  if (!token) throw new ApiError(401, 'Not signed in');
+  const save = ++lastSave;
+  const profile = await change(token);
+  // Keep a newer save's result, and never write over another sign-in's
+  // profile (its readers would wait for it forever).
+  if (save > lastApplied && (!current || current.token === token)) {
+    lastApplied = save;
+    setState(token, { status: 'ready', profile });
+  }
+  return profile;
+}
+
+// `DELETE /users/me/avatar` returns no body: clear the URL in the profile we
+// have, or read it again when there is none yet.
+async function removeAvatarOf(token: string): Promise<Profile> {
+  await deleteAvatar(token);
+  const state = current?.token === token ? current.state : undefined;
+  return state?.status === 'ready'
+    ? { ...state.profile, avatarUrl: null }
+    : getProfile(token);
+}
+
 /**
  * The signed-in user's profile (`GET /users/me`), loaded once per token and
  * shared by every component that reads it. Pass `session?.token`; it stays
- * `loading` without one. `saveName` sends `PATCH /users/me` and, on success,
- * updates every reader without a reload; it rejects with the api error.
- * Readers stay in `error` until a reader mounts again or calls `reload`, the
- * retry after an error (it shows `loading` again while it runs).
+ * `loading` without one. `saveName` (`PATCH /users/me`), `saveAvatar`
+ * (`PUT /users/me/avatar`) and `removeAvatar` (`DELETE /users/me/avatar`)
+ * update every reader without a reload on success, and reject with the api
+ * error otherwise. Readers stay in `error` until a reader mounts again or
+ * calls `reload`, the retry after an error (it shows `loading` again while it
+ * runs).
  */
 export function useProfile(token: string | null | undefined): {
   state: ProfileState;
   reload: () => void;
   saveName: (name: string | null) => Promise<Profile>;
+  saveAvatar: (file: File) => Promise<Profile>;
+  removeAvatar: () => Promise<Profile>;
 } {
   const state = useSyncExternalStore(
     subscribe,
@@ -83,21 +122,15 @@ export function useProfile(token: string | null | undefined): {
   }, [token]);
 
   const saveName = useCallback(
-    async (name: string | null) => {
-      // A 401 like the api's, so callers sign out on the same path.
-      if (!token) throw new ApiError(401, 'Not signed in');
-      const save = ++lastSave;
-      const profile = await updateProfile(token, { name });
-      // Keep a newer save's result, and never write over another sign-in's
-      // profile (its readers would wait for it forever).
-      if (save > lastApplied && (!current || current.token === token)) {
-        lastApplied = save;
-        setState(token, { status: 'ready', profile });
-      }
-      return profile;
-    },
+    (name: string | null) =>
+      save(token, (token) => updateProfile(token, { name })),
     [token],
   );
+  const saveAvatar = useCallback(
+    (file: File) => save(token, (token) => uploadAvatar(token, file)),
+    [token],
+  );
+  const removeAvatar = useCallback(() => save(token, removeAvatarOf), [token]);
 
-  return { state, reload, saveName };
+  return { state, reload, saveName, saveAvatar, removeAvatar };
 }

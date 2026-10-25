@@ -432,7 +432,8 @@ test.describe('avatar upload', () => {
   });
 
   test.describe(() => {
-    test.use({ allowConsoleErrors: [/ERR_FAILED/, /status of 500/] });
+    // One pattern: Playwright reads a two-item array as [value, options].
+    test.use({ allowConsoleErrors: [/ERR_FAILED|status of 500/] });
 
     for (const failure of ['server', 'network'] as const) {
       test(`a ${failure} failure shows an error with Try again and keeps the previous avatar`, async ({
