@@ -48,7 +48,8 @@ export const UNSUPPORTED_FORMAT_MESSAGE =
 
 export const FORMATS_HINT = `MP4, WebM, MP3, M4A or WAV, up to ${formatBytes(MAX_UPLOAD_BYTES)}`;
 
-const extensionOf = (name: string) => {
+/** ".JPG" for "me.JPG" → ".jpg"; "" without an extension. */
+export const extensionOf = (name: string) => {
   const dot = name.lastIndexOf('.');
   return dot === -1 ? '' : name.slice(dot).toLowerCase();
 };

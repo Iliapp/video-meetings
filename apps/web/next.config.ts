@@ -1,15 +1,18 @@
 import type { NextConfig } from 'next';
 
-// Inlined into the client bundle as the upload size pre-check, so a typo
-// ("500MB") must fail the build, not silently fall back to the 2 GB default.
-const maxBytes = process.env.NEXT_PUBLIC_RECORDINGS_MAX_BYTES;
-if (
-  maxBytes &&
-  !(Number.isSafeInteger(Number(maxBytes)) && Number(maxBytes) > 0)
-) {
-  throw new Error(
-    `NEXT_PUBLIC_RECORDINGS_MAX_BYTES must be a positive integer, got "${maxBytes}"`,
-  );
+// Inlined into the client bundle as the upload size pre-checks, so a typo
+// ("500MB") must fail the build, not silently fall back to the default.
+for (const name of [
+  'NEXT_PUBLIC_RECORDINGS_MAX_BYTES',
+  'NEXT_PUBLIC_AVATAR_MAX_BYTES',
+]) {
+  const maxBytes = process.env[name];
+  if (
+    maxBytes &&
+    !(Number.isSafeInteger(Number(maxBytes)) && Number(maxBytes) > 0)
+  ) {
+    throw new Error(`${name} must be a positive integer, got "${maxBytes}"`);
+  }
 }
 
 const nextConfig: NextConfig = {
