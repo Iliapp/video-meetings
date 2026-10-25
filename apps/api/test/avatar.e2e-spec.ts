@@ -115,6 +115,7 @@ describe('Avatar (e2e)', () => {
       new RegExp(`^${mimeType.replace('/', '\\/')}`),
     );
     expect(res.headers['x-content-type-options']).toBe('nosniff');
+    expect(res.headers['cache-control']).toBe('private, no-store');
     expect(res.body).toEqual(buffer);
   };
 
@@ -124,7 +125,9 @@ describe('Avatar (e2e)', () => {
     }).compile();
 
     app = moduleFixture.createNestApplication();
-    await app.init();
+    // A real port: avatarUrl is built from the request's Host, and supertest
+    // would give an app that isn't listening a new port on every request.
+    await app.listen(0);
   });
 
   afterAll(async () => {

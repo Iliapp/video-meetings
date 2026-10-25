@@ -3,6 +3,7 @@ import { Module, UnsupportedMediaTypeException } from '@nestjs/common';
 import { MulterModule } from '@nestjs/platform-express';
 import { diskStorage } from 'multer';
 import { AuthModule } from '../auth/auth.module';
+import { AvatarFilesController } from './avatar-files.controller';
 import {
   hasAllowedAvatarExtension,
   UNSUPPORTED_AVATAR_MESSAGE,
@@ -16,6 +17,7 @@ import { UploadAvatarHandler } from './commands/upload-avatar/upload-avatar.hand
 import { ProfileController } from './profile.controller';
 import { FindUserByEmailHandler } from './queries/find-user-by-email/find-user-by-email.handler';
 import { GetProfileHandler } from './queries/get-profile/get-profile.handler';
+import { ResolveAvatarHandler } from './queries/resolve-avatar/resolve-avatar.handler';
 import { AvatarStorageModule } from './storage/avatar-storage.module';
 import { AvatarStorageService } from './storage/avatar-storage.service';
 
@@ -49,11 +51,12 @@ import { AvatarStorageService } from './storage/avatar-storage.service';
       }),
     }),
   ],
-  controllers: [ProfileController],
+  controllers: [ProfileController, AvatarFilesController],
   providers: [
     CreateUserHandler,
     FindUserByEmailHandler,
     GetProfileHandler,
+    ResolveAvatarHandler,
     UpdateProfileHandler,
     UploadAvatarHandler,
     DeleteAvatarHandler,

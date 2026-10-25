@@ -1,5 +1,6 @@
 import { resolve } from 'node:path';
 import { ConfigType, registerAs } from '@nestjs/config';
+import { parsePublicUrl } from '../common/public-url';
 
 const DEFAULT_MAX_BYTES = 2 * 1024 ** 3; // 2 GB
 // Long enough to watch a long meeting without refetching the URLs.
@@ -32,24 +33,6 @@ export const parseUrlTtl = (value: string | undefined): number => {
     );
   }
   return seconds;
-};
-
-// Base of the signed URLs, e.g. https://api.example.com (a path prefix is
-// kept). Unset → taken from the request that asks for them, which is only
-// right when clients reach the api directly.
-export const parsePublicUrl = (
-  value: string | undefined,
-): string | undefined => {
-  if (!value) {
-    return undefined;
-  }
-  const url = URL.parse(value);
-  if (!url || !['http:', 'https:'].includes(url.protocol) || url.search) {
-    throw new Error(
-      `API_PUBLIC_URL must be an http(s) URL like "https://api.example.com", got "${value}"`,
-    );
-  }
-  return `${url.origin}${url.pathname}`.replace(/\/+$/, '');
 };
 
 // Read once at startup; a bad RECORDINGS_MAX_BYTES, RECORDING_URL_TTL or

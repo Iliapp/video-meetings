@@ -1,5 +1,6 @@
 import { GUARDS_METADATA } from '@nestjs/common/constants';
 import { Test } from '@nestjs/testing';
+import type { Request } from 'express';
 import { CommandBus, QueryBus } from '@nestjs/cqrs';
 import { JwtAuthGuard } from '../auth/jwt-auth.guard';
 import { avatarsConfig } from './avatars.config';
@@ -21,20 +22,25 @@ describe('ProfileController', () => {
     name: 'Ann',
     avatarUrl: null,
   };
+  // What Express gives the controller to build absolute avatar URLs from.
+  const request = {
+    protocol: 'http',
+    get: (header: string) => (header === 'host' ? 'api.test' : undefined),
+  } as unknown as Request;
+  let config: { dir: string; maxBytes: number; publicUrl?: string };
   let controller: ProfileController;
 
   beforeEach(async () => {
     jest.resetAllMocks();
+    config = { dir: '/avatars', maxBytes: 1, publicUrl: undefined };
     const moduleRef = await Test.createTestingModule({
       controllers: [ProfileController],
       providers: [
         { provide: CommandBus, useValue: commandBus },
         { provide: QueryBus, useValue: queryBus },
-        // Dependencies of AvatarUploadInterceptor on the upload route.
-        {
-          provide: avatarsConfig.KEY,
-          useValue: { dir: '/avatars', maxBytes: 1 },
-        },
+        // The controller reads publicUrl; AvatarUploadInterceptor (upload
+        // route) needs the config and the storage.
+        { provide: avatarsConfig.KEY, useFactory: () => config },
         { provide: AvatarStorageService, useValue: {} },
       ],
     })
@@ -53,7 +59,7 @@ describe('ProfileController', () => {
   it('dispatches GetProfileQuery for the signed-in user', async () => {
     queryBus.execute.mockResolvedValue(profile);
 
-    await expect(controller.getMe(user)).resolves.toBe(profile);
+    await expect(controller.getMe(user, request)).resolves.toEqual(profile);
     expect(queryBus.execute).toHaveBeenCalledWith(
       new GetProfileQuery('user-id'),
     );
@@ -68,7 +74,9 @@ describe('ProfileController', () => {
     async (_case, dto, name) => {
       commandBus.execute.mockResolvedValue(profile);
 
-      await expect(controller.updateMe(user, dto)).resolves.toBe(profile);
+      await expect(controller.updateMe(user, dto, request)).resolves.toEqual(
+        profile,
+      );
       expect(commandBus.execute).toHaveBeenCalledWith(
         new UpdateProfileCommand('user-id', name),
       );
@@ -83,13 +91,37 @@ describe('ProfileController', () => {
       size: 103,
     } as Express.Multer.File;
 
-    await expect(controller.uploadAvatar(user, file)).resolves.toBe(profile);
+    await expect(controller.uploadAvatar(user, file, request)).resolves.toEqual(
+      profile,
+    );
     expect(commandBus.execute).toHaveBeenCalledWith(
       new UploadAvatarCommand('user-id', {
         path: '/avatars/incoming/temp',
         originalName: 'me.png',
       }),
     );
+  });
+
+  it('makes avatarUrl absolute against the request origin', async () => {
+    queryBus.execute.mockResolvedValue({ ...profile, avatarUrl: '/avatars/k' });
+
+    await expect(controller.getMe(user, request)).resolves.toMatchObject({
+      avatarUrl: 'http://api.test/avatars/k',
+    });
+  });
+
+  it('prefers API_PUBLIC_URL over the request origin', async () => {
+    config.publicUrl = 'https://example.com/api';
+    commandBus.execute.mockResolvedValue({
+      ...profile,
+      avatarUrl: '/avatars/k',
+    });
+
+    await expect(
+      controller.updateMe(user, { name: 'Ann' }, request),
+    ).resolves.toMatchObject({
+      avatarUrl: 'https://example.com/api/avatars/k',
+    });
   });
 
   it('dispatches DeleteAvatarCommand for the signed-in user', async () => {

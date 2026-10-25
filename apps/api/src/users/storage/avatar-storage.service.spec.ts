@@ -19,7 +19,11 @@ describe('AvatarStorageService', () => {
 
   beforeEach(() => {
     dir = mkdtempSync(join(tmpdir(), 'avatar-storage-'));
-    storage = new AvatarStorageService({ dir, maxBytes: 1024 });
+    storage = new AvatarStorageService({
+      dir,
+      maxBytes: 1024,
+      publicUrl: undefined,
+    });
   });
 
   afterEach(() => {
