@@ -1,7 +1,7 @@
 import { User } from '../generated/prisma/client';
 
-// What the signed-in user sees of their own record; the password hash stays
-// internal. avatarUrl is always null until avatars exist.
+// What the signed-in user sees of their own record; the password hash, avatar
+// key and MIME type stay internal.
 export interface ProfileResponse {
   id: string;
   email: string;
@@ -9,8 +9,26 @@ export interface ProfileResponse {
   avatarUrl: string | null;
 }
 
+// Handlers return avatarUrl as a path (/avatars/<key>); ProfileController
+// makes it absolute with withAvatarBaseUrl. The key is a random UUID that
+// changes with every upload, so the URL is unguessable and needs no Bearer
+// header, and an old URL stops working once the avatar is replaced or removed.
 export const toProfileResponse = ({
   id,
   email,
   name,
-}: User): ProfileResponse => ({ id, email, name, avatarUrl: null });
+  avatarKey,
+}: User): ProfileResponse => ({
+  id,
+  email,
+  name,
+  avatarUrl: avatarKey ? `/avatars/${avatarKey}` : null,
+});
+
+export const withAvatarBaseUrl = (
+  profile: ProfileResponse,
+  baseUrl: string,
+): ProfileResponse => ({
+  ...profile,
+  avatarUrl: profile.avatarUrl && `${baseUrl}${profile.avatarUrl}`,
+});

@@ -13,6 +13,8 @@ describe('LoginHandler', () => {
     id: 'user-id',
     email: 'user@example.com',
     name: null,
+    avatarKey: null,
+    avatarMimeType: null,
     passwordHash: 'stored-hash',
     createdAt: new Date(),
     updatedAt: new Date(),

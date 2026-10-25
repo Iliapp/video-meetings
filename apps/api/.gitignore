@@ -2,3 +2,6 @@
 
 # Uploaded recordings (default RECORDINGS_DIR)
 /recordings/
+
+# Uploaded avatars (default AVATARS_DIR)
+/avatars/
