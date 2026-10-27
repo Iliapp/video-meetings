@@ -1,0 +1,28 @@
+{
+  "enabled": true,
+  "maxIterations": 10,
+  "maxTurns": 500,
+  "prompt": "Read .claude/ralph.md and follow its rules. Take the next open issue from the milestone '{milestone}' and implement it in the {branch} branch. Do not create a PR; close the issue with 'Closes #N' in the commit message.",
+  "phase": [
+    {
+      "milestone": "Phase 2: Web: profile page, name and header identity",
+      "branch": "feature/profile-phase-6"
+    },
+    {
+      "milestone": "Phase 3: Profile API: avatar upload, serve, remove",
+      "branch": "feature/profile-phase-8"
+    },
+    {
+      "milestone": "Phase 4: Web: avatar upload and removal",
+      "branch": "feature/profile-phase-9"
+    },
+    {
+      "milestone": "Phase 5: Profile API: password change",
+      "branch": "feature/profile-phase-10"
+    },
+    {
+      "milestone": "Phase 6: Web: password change form",
+      "branch": "feature/profile-phase-11"
+    }
+  ]
+}
