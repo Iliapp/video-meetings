@@ -10,7 +10,9 @@ Each session implements exactly one issue, named in the prompt. `.claude/ralph-s
 
 ## Commits
 
-- By the rule in the `git-commit` skill; close the issue with `Closes #N` in the commit message
+- By the rule in the `git-commit` skill, with `Closes #N` in the commit message (links the issue to the PR)
+- `Closes #N` closes the issue only once it reaches `main`, so after a successful commit run `gh issue close <N>`
+- Commit all your changes: `ralph-start.js` stops the run if the tree is dirty, no commit was made or the issue is open
 
 ## Execution plan
 
