@@ -1,28 +1,31 @@
 # Ralph Loop - Autonomous Work Rule
 
-### How ta take issues
+Each session implements exactly one issue, named in the prompt. `.claude/ralph-start.js` has already switched to the phase branch.
 
-- Read title, and body definition of done
-- check branch config.branch is exists (if not must create it)
-- work only in this branch - not create new
+## How to take an issue
 
-## Commits name
+- `gh issue view <N> --json title,body`: the body has the task, its done criteria and the plan section to read
+- Read only that plan section (`grep -n` the heading, then `offset`/`limit`), not the whole plan or PRD
+- Work only in the current branch; do not create or switch branches
 
-- By rule in skill commit
+## Commits
 
-## Execution Plan
+- By the rule in the `git-commit` skill; close the issue with `Closes #N` in the commit message
 
-- Firstly tests - than realisation(Tdd)
-- While working, run only the tests for this issue: the affected spec file
-  (`pnpm --filter web test:e2e e2e/<name>.spec.ts`, `pnpm --filter api test:e2e -- <name>`)
-  and unit tests of the changed app. Do not run the full suites after every change.
-- If tests are red after 5 tries, just stop and write on issues comment(which describe a problem)
+## Execution plan
 
-## Completion Rules
+- Tests first, then the implementation (TDD)
+- Run only the tests for this issue: the affected spec file
+  (`pnpm --filter web test:e2e e2e/<name>.spec.ts --reporter=line`, `pnpm --filter api test:e2e -- <name>`)
+  and unit tests of the changed app. Trim output: `2>&1 | tail -40`
+- If tests are red after 5 tries, stop and write an issue comment that describes the problem
 
-- Run the full suites once, right before the commit (`pnpm lint`, `pnpm typecheck`, `pnpm test`,
-  api and web e2e). Tests written for later issues of this milestone may still be red; everything else must be green
-- Make sure all requirements are met
-- No per-issue code review: the Stop Hook reviews the whole PR when the milestone is done
-- Close the Issue
-- Do not create a PR, Stop Hook will do this
+## Completion rules
+
+- The prompt says whether this is the last open issue of the milestone:
+  - not the last: before the commit, run the tests of this issue plus `lint` and `typecheck` of the changed app
+  - the last: run the full suites once (`pnpm lint`, `pnpm typecheck`, `pnpm test`, api and web e2e), each trimmed with `| tail -40`. Everything must be green
+- Tests written for later issues of this milestone may still be red
+- Make sure all requirements of the issue are met
+- No per-issue code review: `ralph-start.js` reviews the whole PR when the milestone is done
+- Do not push or create a PR

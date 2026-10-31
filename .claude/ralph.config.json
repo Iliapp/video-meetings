@@ -1,28 +1,26 @@
 {
   "enabled": true,
-  "maxIterations": 10,
-  "maxTurns": 500,
-  "prompt": "Read .claude/ralph.md and follow its rules. Take the next open issue from the milestone '{milestone}' and implement it in the {branch} branch. Do not create a PR; close the issue with 'Closes #N' in the commit message.",
+  "model": "claude-sonnet-5-5",
+  "reviewModel": "claude-opus-5-5",
+  "maxIterations": 8,
+  "maxTurns": 150,
+  "prompt": "Read .claude/ralph.md and follow its rules. Implement issue #{issue} from the milestone '{milestone}' in the {branch} branch. {finalCheck} Do not create a PR; close the issue with 'Closes #{issue}' in the commit message.",
   "phase": [
     {
-      "milestone": "Phase 2: Web: profile page, name and header identity",
-      "branch": "feature/profile-phase-6"
+      "milestone": "Phase 1: API: transcribe uploads and read the transcript (tracer bullet)",
+      "branch": "feature/transcription-phase-1"
     },
     {
-      "milestone": "Phase 3: Profile API: avatar upload, serve, remove",
-      "branch": "feature/profile-phase-8"
+      "milestone": "Phase 2: Web: transcription status and transcript view",
+      "branch": "feature/transcription-phase-2"
     },
     {
-      "milestone": "Phase 4: Web: avatar upload and removal",
-      "branch": "feature/profile-phase-9"
+      "milestone": "Phase 3: API: failures, retry, deletion and restart recovery",
+      "branch": "feature/transcription-phase-3"
     },
     {
-      "milestone": "Phase 5: Profile API: password change",
-      "branch": "feature/profile-phase-10"
-    },
-    {
-      "milestone": "Phase 6: Web: password change form",
-      "branch": "feature/profile-phase-11"
+      "milestone": "Phase 4: Web: failed status and retry",
+      "branch": "feature/transcription-phase-4"
     }
   ]
 }
