@@ -1,0 +1,26 @@
+{
+  "enabled": true,
+  "model": "claude-sonnet-5-5",
+  "reviewModel": "claude-opus-5-5",
+  "maxIterations": 8,
+  "maxTurns": 150,
+  "prompt": "Read .claude/ralph.md and follow its rules. Implement issue #{issue} from the milestone '{milestone}' in the {branch} branch. {finalCheck} Do not create a PR; put 'Closes #{issue}' in the commit message, then run 'gh issue close {issue}'.",
+  "phase": [
+    {
+      "milestone": "Phase 1: API: transcribe uploads and read the transcript (tracer bullet)",
+      "branch": "feature/transcription-phase-1"
+    },
+    {
+      "milestone": "Phase 2: Web: transcription status and transcript view",
+      "branch": "feature/transcription-phase-2"
+    },
+    {
+      "milestone": "Phase 3: API: failures, retry, deletion and restart recovery",
+      "branch": "feature/transcription-phase-3"
+    },
+    {
+      "milestone": "Phase 4: Web: failed status and retry",
+      "branch": "feature/transcription-phase-4"
+    }
+  ]
+}
