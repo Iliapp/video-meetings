@@ -26,11 +26,18 @@ async function login({ url, email, password }: ApiConfig): Promise<string> {
 // Reuses the api's own read side: `GET /meetings` (ListMeetingsQuery) already
 // limits the result to meetings the user owns or is invited to.
 export function createApiClient(config: ApiConfig) {
-  let token: string | undefined;
+  // The promise is cached, so parallel tool calls share one login.
+  let token: Promise<string> | undefined;
+
+  const accessToken = () =>
+    (token ??= login(config).catch((error: unknown) => {
+      token = undefined; // a failed login must not stay cached
+      throw error;
+    }));
 
   const getMeetings = async () =>
     fetch(endpoint(config.url, 'meetings'), {
-      headers: { Authorization: `Bearer ${(token ??= await login(config))}` },
+      headers: { Authorization: `Bearer ${await accessToken()}` },
     });
 
   return {
@@ -39,6 +46,9 @@ export function createApiClient(config: ApiConfig) {
       if (response.status === 401) {
         token = undefined;
         response = await getMeetings();
+        if (response.status === 401) {
+          throw new Error('api rejected the token it just issued (401)');
+        }
       }
       if (!response.ok) {
         throw new Error(`api responded ${response.status} to GET /meetings`);

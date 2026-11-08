@@ -14,18 +14,18 @@ Each app has its own `CLAUDE.md` with app-specific notes; read it before working
 
 ## Commands (from repo root)
 
-| Command                             | What it does                                          |
-| ----------------------------------- | ----------------------------------------------------- |
-| `pnpm dev`                          | Run all apps in parallel (web on :3000, api on :4000) |
-| `pnpm dev:web` / `pnpm dev:api`     | Run a single app                                      |
-| `pnpm build`                        | Build all apps                                        |
-| `pnpm lint`                         | Lint all apps                                         |
-| `pnpm typecheck`                    | Type-check all apps (`tsc --noEmit`)                  |
-| `pnpm test`                         | Run unit tests in all apps (api only; web has none)   |
-| `pnpm --filter <app> test:e2e`      | E2E tests: api (Jest + supertest), web (Playwright)   |
-| `pnpm format` / `pnpm format:check` | Prettier write / check for the whole repo             |
-| `pnpm db:up` / `pnpm db:down`       | Start (and wait until healthy) / stop local Postgres  |
-| `pnpm db:logs`                      | Follow Postgres logs                                  |
+| Command                             | What it does                                           |
+| ----------------------------------- | ------------------------------------------------------ |
+| `pnpm dev`                          | Run all apps in parallel (web on :3000, api on :4000)  |
+| `pnpm dev:web` / `pnpm dev:api`     | Run a single app                                       |
+| `pnpm build`                        | Build all apps                                         |
+| `pnpm lint`                         | Lint all apps                                          |
+| `pnpm typecheck`                    | Type-check all apps (`tsc --noEmit`)                   |
+| `pnpm test`                         | Run unit tests in all apps (api and mcp; web has none) |
+| `pnpm --filter <app> test:e2e`      | E2E tests: api (Jest + supertest), web (Playwright)    |
+| `pnpm format` / `pnpm format:check` | Prettier write / check for the whole repo              |
+| `pnpm db:up` / `pnpm db:down`       | Start (and wait until healthy) / stop local Postgres   |
+| `pnpm db:logs`                      | Follow Postgres logs                                   |
 
 ## Local database
 
