@@ -1,6 +1,6 @@
 # video-meetings
 
-Video meetings monorepo: a Next.js web client (`apps/web`) and a NestJS API (`apps/api`). The browser calls the api directly over REST/JSON at `NEXT_PUBLIC_API_URL`; the api allows it via CORS (`WEB_ORIGIN`) and authenticates with a `Bearer` JWT. Media the browser loads itself (`<video>`/`<audio>` recordings, `<img>` avatars) comes from absolute api URLs the api returns: signed for recordings, unguessable per upload for avatars, so no `Bearer` header is needed.
+Video meetings monorepo: a Next.js web client (`apps/web`), a NestJS API (`apps/api`) and a standalone stdio MCP server (`apps/mcp`, calls the api over REST with its own login). The browser calls the api directly over REST/JSON at `NEXT_PUBLIC_API_URL`; the api allows it via CORS (`WEB_ORIGIN`) and authenticates with a `Bearer` JWT. Media the browser loads itself (`<video>`/`<audio>` recordings, `<img>` avatars) comes from absolute api URLs the api returns: signed for recordings, unguessable per upload for avatars, so no `Bearer` header is needed.
 Each app has its own `CLAUDE.md` with app-specific notes; read it before working in that app.
 
 ## Tooling
