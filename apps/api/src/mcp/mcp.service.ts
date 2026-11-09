@@ -37,7 +37,18 @@ export class McpService implements OnModuleInit {
       void transport.close();
       void server.close();
     });
-    await server.connect(transport);
-    await transport.handleRequest(req, res, req.body);
+    try {
+      await server.connect(transport);
+      await transport.handleRequest(req, res, req.body);
+    } catch (error) {
+      this.logger.error('MCP request failed', error);
+      if (!res.headersSent) {
+        res.status(500).json({
+          jsonrpc: '2.0',
+          error: { code: -32603, message: 'Internal server error' },
+          id: null,
+        });
+      }
+    }
   }
 }
