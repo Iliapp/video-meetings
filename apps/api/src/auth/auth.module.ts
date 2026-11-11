@@ -3,6 +3,7 @@ import { ConfigService } from '@nestjs/config';
 import { JwtModule, JwtModuleOptions } from '@nestjs/jwt';
 import { AuthController } from './auth.controller';
 import { JwtAuthGuard } from './jwt-auth.guard';
+import { ChangePasswordHandler } from './commands/change-password/change-password.handler';
 import { RegisterUserHandler } from './commands/register-user/register-user.handler';
 import { PasswordService } from './password.service';
 import { LoginHandler } from './queries/login/login.handler';
@@ -23,6 +24,7 @@ import { TokenService } from './token.service';
   controllers: [AuthController],
   providers: [
     RegisterUserHandler,
+    ChangePasswordHandler,
     LoginHandler,
     PasswordService,
     TokenService,

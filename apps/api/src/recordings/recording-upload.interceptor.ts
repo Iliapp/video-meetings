@@ -8,7 +8,7 @@ import {
 } from '@nestjs/common';
 import type { Request } from 'express';
 import { catchError, Observable } from 'rxjs';
-import { formatBytes } from './recording-file';
+import { formatBytes } from '../common/format-bytes';
 import { recordingsConfig, type RecordingsConfig } from './recordings.config';
 import { RecordingsStorageService } from './storage/recordings-storage.service';
 

@@ -14,6 +14,10 @@ export const RECORDINGS_MAX_BYTES = 64 * 1024;
 // recover from an expired URL.
 export const RECORDING_URL_TTL_SECONDS = 4;
 
+// The same avatar limit for the api and the web pre-check (5 MB in
+// production), low enough to test the size error with a small file.
+export const AVATAR_MAX_BYTES = 16 * 1024;
+
 export const TEST_DATABASE_URL =
   process.env.TEST_DATABASE_URL ??
   'postgresql://postgres:postgres@localhost:5432/video_meetings_test';
@@ -21,7 +25,10 @@ export const TEST_DATABASE_URL =
 // Gitignored; the api empties its incoming/ folder on start.
 export const RECORDINGS_DIR = join(__dirname, '..', '.e2e', 'recordings');
 
-// Media fixtures shared with the api e2e tests.
+// Gitignored, like RECORDINGS_DIR.
+export const AVATARS_DIR = join(__dirname, '..', '.e2e', 'avatars');
+
+// Media and avatar image fixtures shared with the api e2e tests.
 export const FIXTURES_DIR = join(
   __dirname,
   '..',

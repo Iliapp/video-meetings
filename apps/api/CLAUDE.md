@@ -1,45 +1,29 @@
 # api (NestJS)
 
-NestJS 12 backend for video meetings. Express platform, listens on `PORT` (default `4000`). PostgreSQL via Prisma 7 (`prisma-client` generator + `@prisma/adapter-pg`).
+NestJS 12 (Express), listens on `PORT` (default `4000`). PostgreSQL via Prisma 7 (`prisma-client` generator + `@prisma/adapter-pg`).
 
 ## Environment
 
-Copy `.env.example` to `.env` (loaded by `@nestjs/config` and `prisma.config.ts`):
+Copy `.env.example` to `.env`. `JWT_SECRET` is required; `DATABASE_URL`, `JWT_EXPIRES_IN`, `WEB_ORIGIN` (comma-separated CORS origins), `RECORDINGS_DIR`/`AVATARS_DIR`, `RECORDINGS_MAX_BYTES`/`AVATAR_MAX_BYTES`, `RECORDING_URL_TTL` (`90`, `15m`, `6h`, …) have defaults in `.env.example`. Invalid limits, TTL or `API_PUBLIC_URL` stop the app from starting.
 
-- `DATABASE_URL`: Postgres connection string (root `pnpm db:up` starts it).
-- `JWT_SECRET`: required, signs access tokens.
-- `JWT_EXPIRES_IN`: token lifetime, default `1h`.
-- `WEB_ORIGIN`: comma-separated origins allowed by CORS, default `http://localhost:3000`.
-- `RECORDINGS_DIR`: where uploaded recordings are stored, default `recordings` (relative to the api's working directory, gitignored). Keep it on a persistent, backed-up volume; one api instance per directory.
-- `RECORDINGS_MAX_BYTES`: upload size limit in bytes, default `2147483648` (2 GB). Must be a positive integer, or the app won't start.
-- `RECORDING_URL_TTL`: lifetime of signed stream/download URLs, default `6h`. Seconds (`90`) or `30s`/`15m`/`6h`/`1d`; anything else stops the app from starting.
-- `API_PUBLIC_URL`: public base of the api used in signed URLs (e.g. `https://api.example.com`, a path prefix is kept; must be http(s), or the app won't start). Unset → the protocol and `Host` of the request that asks for them, which is only right when browsers reach the api directly. **Set it whenever the api runs behind a proxy or TLS terminator**, or the URLs come out as the proxy's `http://` upstream.
+- `RECORDINGS_DIR`/`AVATARS_DIR`: persistent, backed-up volume; one api instance per directory.
+- `API_PUBLIC_URL`: public base for signed recording URLs and `avatarUrl`. Unset → the request's protocol and `Host`, so **set it whenever the api runs behind a proxy or TLS terminator**.
+- `main.ts` raises `requestTimeout` to 2 h for large uploads; a reverse proxy needs matching body size limit and timeouts.
 
-## Commands (run in `apps/api`, or `pnpm --filter api <script>` from root)
+## Commands (in `apps/api`, or `pnpm --filter api <script>`)
 
-- `pnpm dev`: start with watch mode (`nest start --watch`)
-- `pnpm build`: `prisma generate` + compile to `dist/` via `nest build`
-- `pnpm start:prod`: run `dist/main`
-- `pnpm lint`: ESLint over `src` and `test`
-- `pnpm typecheck`: `tsc --noEmit` over the whole project
-- `pnpm test`: unit tests (Jest, `*.spec.ts` next to sources)
-- `pnpm test:e2e`: e2e tests in `test/` (config `test/jest-e2e.json`); needs Postgres, see Testing
-- `pnpm db:migrate`: create and apply a migration after editing `prisma/schema.prisma` (`prisma migrate dev`); it doesn't regenerate the client, so run `pnpm exec prisma generate` afterwards
-- `pnpm db:deploy`: apply pending migrations (`prisma migrate deploy`)
-- `pnpm db:studio`: open Prisma Studio
-- `pnpm exec prisma generate`: regenerate the client (also runs on `postinstall` and `build`)
+`dev`, `build` (`prisma generate` + `nest build`), `start:prod`, `lint`, `typecheck`, `test`, `test:e2e`, `db:migrate`, `db:deploy`, `db:studio`.
 
-Jest runs through `node --experimental-vm-modules`; call the scripts instead of invoking `jest` directly.
+- `pnpm db:migrate` doesn't regenerate the client: run `pnpm exec prisma generate` afterwards.
+- Jest runs through `node --experimental-vm-modules`; use the scripts, not `jest` directly. Single file: `pnpm test -- <pattern>` (same for `test:e2e`).
+- Jest doesn't type-check the whole project, so also run `lint`, `typecheck` and `build`.
 
 ## Testing
 
-Run both suites from `apps/api` (or `pnpm --filter api test` / `pnpm --filter api test:e2e` from root):
-
-1. `pnpm db:up` (from root): e2e needs Postgres on `localhost:5432`. Unit tests don't.
-2. `pnpm test`: unit specs (`src/**/*.spec.ts`), with Prisma, buses and services mocked through `Test.createTestingModule` providers.
-3. `pnpm test:e2e`: boots the full `AppModule` and calls it over HTTP with supertest. `test/setup-env.ts` points `DATABASE_URL` at `video_meetings_test` (or `TEST_DATABASE_URL`), defaults `JWT_SECRET`, gives each test file a temp `RECORDINGS_DIR` and lowers `RECORDINGS_MAX_BYTES` to 32 KB, so no `.env` is needed. `recording-playback.e2e-spec.ts` restarts the app with `RECORDING_URL_TTL=2s` to test expiry. Small media fixtures live in `test/fixtures/` (made with ffmpeg; `no-duration.webm` has no duration, like a `MediaRecorder` file). `test/global-setup.ts` runs `prisma migrate deploy` first.
-
-Run a single file with `pnpm test -- <path or pattern>` (same for `test:e2e`). Also run `pnpm lint`, `pnpm typecheck` and `pnpm build`; Jest doesn't type-check the whole project.
+- Unit specs beside the code (`*.spec.ts`), dependencies mocked through `Test.createTestingModule` providers.
+- E2E (`test/*.e2e-spec.ts`) boots the full `AppModule` over supertest and needs `pnpm db:up`. `test/setup-env.ts` sets the test database (`video_meetings_test`, or `TEST_DATABASE_URL`), `JWT_SECRET`, temp storage dirs and small size limits, so no `.env` is needed; `test/global-setup.ts` applies migrations. E2E doesn't run `main.ts`, so global pipes etc. go in `AppModule` (`APP_PIPE`).
+- A test that checks absolute URLs (`avatarUrl`) must listen on a real port, because the base comes from the request's `Host`. To test URL expiry, restart the app with a short `RECORDING_URL_TTL` (see `recording-playback.e2e-spec.ts`).
+- Fixtures in `test/fixtures/` are shared with the web e2e tests.
 
 ## Structure
 
@@ -66,10 +50,9 @@ Run a single file with `pnpm test -- <path or pattern>` (same for `test:e2e`). A
 
 ## Conventions
 
-- TypeScript: `module`/`moduleResolution` = `nodenext`, strict, decorators + `emitDecoratorMetadata` enabled, `strictPropertyInitialization` off.
-- ESLint uses `recommendedTypeChecked`; `no-floating-promises` is an error, so `await` or `void` every promise.
-- Use constructor injection with providers; keep controllers thin and put logic in services.
-- Feature modules use CQRS: controllers only build a command (state change) or query (read) and send it through `CommandBus`/`QueryBus`. Each lives in `commands/<name>/` or `queries/<name>/` as `<name>.command.ts`/`<name>.query.ts` (extends `Command<Result>`/`Query<Result>` for typed results) plus `<name>.handler.ts`; register handlers in the module's `providers`.
-- Modules talk to each other through the buses, not by importing each other's services: dispatch the other module's command/query class (e.g. `auth` → `CreateUserCommand`). Only `AuthModule` is imported directly, for `JwtAuthGuard`.
-- Put unit specs beside the code (`foo.service.spec.ts`) and e2e specs in `test/*.e2e-spec.ts`.
-- Before changing recordings, read `docs/research-meeting-upload.md` (why each library and technique was chosen; the code above is the source of truth where they differ).
+- TS `nodenext`, decorators + `emitDecoratorMetadata`, `strictPropertyInitialization` off. ESLint `recommendedTypeChecked`: `await` or `void` every promise.
+- New features via the Nest CLI (`pnpm nest g module|controller|service <name>`), one module folder per feature under `src/`.
+- Constructor injection with providers; keep controllers thin.
+- CQRS: controllers only dispatch a command or query through the bus. Files in `commands/<name>/` or `queries/<name>/` as `<name>.command.ts`/`<name>.query.ts` (extends `Command<Result>`/`Query<Result>`) + `<name>.handler.ts`; register handlers in the module's `providers`.
+- Modules talk through the buses, not each other's services. Only `AuthModule` is imported directly, for `JwtAuthGuard`.
+- Response DTOs (`*-response.ts`) never expose password hashes or storage keys.

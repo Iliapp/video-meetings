@@ -24,13 +24,14 @@ export interface TestRecording {
   durationSeconds: number | null;
 }
 
-const PASSWORD = 'Str0ngPassw0rd!';
+// The password every test user signs up with.
+export const PASSWORD = 'Str0ngPassw0rd!';
 
 export const fixturePath = (name: string) => join(FIXTURES_DIR, name);
 export const fixture = (name: string) => readFileSync(fixturePath(name));
 
 async function api<T>(
-  method: 'GET' | 'POST' | 'DELETE',
+  method: 'GET' | 'POST' | 'PUT' | 'PATCH' | 'DELETE',
   path: string,
   { token, json, form }: { token?: string; json?: unknown; form?: FormData },
 ): Promise<T> {
@@ -101,6 +102,36 @@ export function listRecordings(
   });
 }
 
+export function setName(user: TestUser, name: string | null): Promise<void> {
+  return api<void>('PATCH', '/users/me', {
+    token: user.token,
+    json: { name },
+  });
+}
+
+export interface TestProfile {
+  id: string;
+  email: string;
+  name: string | null;
+  avatarUrl: string | null;
+}
+
+export function getProfile(user: TestUser): Promise<TestProfile> {
+  return api<TestProfile>('GET', '/users/me', { token: user.token });
+}
+
+export function uploadAvatar(
+  user: TestUser,
+  name: string,
+): Promise<TestProfile> {
+  const form = new FormData();
+  form.append('file', new Blob([fixture(name)]), name);
+  return api<TestProfile>('PUT', '/users/me/avatar', {
+    token: user.token,
+    form,
+  });
+}
+
 export interface TestRecordingUrls {
   streamUrl: string;
   downloadUrl: string;
@@ -136,6 +167,37 @@ export async function signIn(page: Page, user: TestUser) {
   await page.addInitScript((token) => {
     localStorage.setItem('accessToken', token);
   }, user.token);
+}
+
+// Whether the api accepts these credentials, without touching the browser.
+export async function canSignIn(
+  user: TestUser,
+  password: string,
+): Promise<boolean> {
+  const res = await fetch(`${API_URL}/auth/login`, {
+    method: 'POST',
+    headers: { 'Content-Type': 'application/json' },
+    body: JSON.stringify({ email: user.email, password }),
+  });
+  if (res.status !== 200 && res.status !== 401) {
+    throw new Error(`POST /auth/login → ${res.status} ${await res.text()}`);
+  }
+  return res.status === 200;
+}
+
+// Signs in through the login form, as a user would. Use it instead of
+// `signIn` when the test signs out, since `signIn` restores the token on
+// every page load.
+export async function signInWithForm(
+  page: Page,
+  user: TestUser,
+  password = PASSWORD,
+) {
+  await page.goto('/login');
+  await page.getByRole('textbox', { name: 'Email' }).fill(user.email);
+  await page.getByLabel('Password', { exact: true }).fill(password);
+  await page.getByRole('button', { name: 'Sign in' }).click();
+  await expect(page).toHaveURL('/');
 }
 
 export async function openMeeting(
