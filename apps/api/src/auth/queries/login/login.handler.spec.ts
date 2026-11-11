@@ -16,6 +16,7 @@ describe('LoginHandler', () => {
     avatarKey: null,
     avatarMimeType: null,
     passwordHash: 'stored-hash',
+    name: null,
     createdAt: new Date(),
     updatedAt: new Date(),
   };
