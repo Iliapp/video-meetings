@@ -1,91 +1,48 @@
 # api (NestJS)
 
-NestJS 12 backend for video meetings. Express platform, listens on `PORT` (default `4000`). PostgreSQL via Prisma 7 (`prisma-client` generator + `@prisma/adapter-pg`).
+NestJS 12 (Express), listens on `PORT` (default `4000`). PostgreSQL via Prisma 7 (`prisma-client` generator + `@prisma/adapter-pg`).
 
 ## Environment
 
-Copy `.env.example` to `.env` (loaded by `@nestjs/config` and `prisma.config.ts`):
+Copy `.env.example` to `.env`. `JWT_SECRET` is required; `DATABASE_URL`, `JWT_EXPIRES_IN`, `WEB_ORIGIN` (comma-separated CORS origins), `RECORDINGS_DIR`/`AVATARS_DIR`, `RECORDINGS_MAX_BYTES`/`AVATAR_MAX_BYTES`, `RECORDING_URL_TTL` (`90`, `15m`, `6h`, …) have defaults in `.env.example`. Invalid limits, TTL or `API_PUBLIC_URL` stop the app from starting.
 
-- `DATABASE_URL`: Postgres connection string (root `pnpm db:up` starts it).
-- `JWT_SECRET`: required, signs access tokens.
-- `JWT_EXPIRES_IN`: token lifetime, default `1h`.
-- `WEB_ORIGIN`: comma-separated origins allowed by CORS, default `http://localhost:3000`.
-- `RECORDINGS_DIR`: where uploaded recordings are stored, default `recordings` (relative to the api's working directory, gitignored). Keep it on a persistent, backed-up volume; one api instance per directory.
-- `RECORDINGS_MAX_BYTES`: upload size limit in bytes, default `2147483648` (2 GB). Must be a positive integer, or the app won't start.
-- `AVATARS_DIR`: where uploaded avatars are stored, default `avatars` (relative to the api's working directory, gitignored). Persistent volume, one api instance per directory, as for recordings.
-- `AVATAR_MAX_BYTES`: avatar size limit in bytes, default `5242880` (5 MB). Must be a positive integer, or the app won't start.
-- `RECORDING_URL_TTL`: lifetime of signed stream/download URLs, default `6h`. Seconds (`90`) or `30s`/`15m`/`6h`/`1d`; anything else stops the app from starting.
-- `API_PUBLIC_URL`: public base of the api used in signed recording URLs and `avatarUrl` (e.g. `https://api.example.com`, a path prefix is kept; must be http(s), or the app won't start). Unset → the protocol and `Host` of the request that asks for them, which is only right when browsers reach the api directly. **Set it whenever the api runs behind a proxy or TLS terminator**, or the URLs come out as the proxy's `http://` upstream.
+- `RECORDINGS_DIR`/`AVATARS_DIR`: persistent, backed-up volume; one api instance per directory.
+- `API_PUBLIC_URL`: public base for signed recording URLs and `avatarUrl`. Unset → the request's protocol and `Host`, so **set it whenever the api runs behind a proxy or TLS terminator**.
+- `main.ts` raises `requestTimeout` to 2 h for large uploads; a reverse proxy needs matching body size limit and timeouts.
 
-## Commands (run in `apps/api`, or `pnpm --filter api <script>` from root)
+## Commands (in `apps/api`, or `pnpm --filter api <script>`)
 
-- `pnpm dev`: start with watch mode (`nest start --watch`)
-- `pnpm build`: `prisma generate` + compile to `dist/` via `nest build`
-- `pnpm start:prod`: run `dist/main`
-- `pnpm lint`: ESLint over `src` and `test`
-- `pnpm typecheck`: `tsc --noEmit` over the whole project
-- `pnpm test`: unit tests (Jest, `*.spec.ts` next to sources)
-- `pnpm test:e2e`: e2e tests in `test/` (config `test/jest-e2e.json`); needs Postgres, see Testing
-- `pnpm db:migrate`: create and apply a migration after editing `prisma/schema.prisma` (`prisma migrate dev`); it doesn't regenerate the client, so run `pnpm exec prisma generate` afterwards
-- `pnpm db:deploy`: apply pending migrations (`prisma migrate deploy`)
-- `pnpm db:studio`: open Prisma Studio
-- `pnpm exec prisma generate`: regenerate the client (also runs on `postinstall` and `build`)
+`dev`, `build` (`prisma generate` + `nest build`), `start:prod`, `lint`, `typecheck`, `test`, `test:e2e`, `db:migrate`, `db:deploy`, `db:studio`.
 
-Jest runs through `node --experimental-vm-modules`; call the scripts instead of invoking `jest` directly.
+- `pnpm db:migrate` doesn't regenerate the client: run `pnpm exec prisma generate` afterwards.
+- Jest runs through `node --experimental-vm-modules`; use the scripts, not `jest` directly. Single file: `pnpm test -- <pattern>` (same for `test:e2e`).
+- Jest doesn't type-check the whole project, so also run `lint`, `typecheck` and `build`.
 
 ## Testing
 
-Run both suites from `apps/api` (or `pnpm --filter api test` / `pnpm --filter api test:e2e` from root):
-
-1. `pnpm db:up` (from root): e2e needs Postgres on `localhost:5432`. Unit tests don't.
-2. `pnpm test`: unit specs (`src/**/*.spec.ts`), with Prisma, buses and services mocked through `Test.createTestingModule` providers.
-3. `pnpm test:e2e`: boots the full `AppModule` and calls it over HTTP with supertest. `test/setup-env.ts` points `DATABASE_URL` at `video_meetings_test` (or `TEST_DATABASE_URL`), defaults `JWT_SECRET`, gives each test file a temp `RECORDINGS_DIR` and `AVATARS_DIR` and lowers `RECORDINGS_MAX_BYTES` to 32 KB and `AVATAR_MAX_BYTES` to 16 KB, so no `.env` is needed. `recording-playback.e2e-spec.ts` restarts the app with `RECORDING_URL_TTL=2s` to test expiry. `avatar.e2e-spec.ts` listens on a real port, because `avatarUrl` is built from the request's `Host`. Small fixtures live in `test/fixtures/`: media made with ffmpeg (`no-duration.webm` has no duration, like a `MediaRecorder` file) and 16×16 `avatar.jpg|png|webp|gif` made with sharp (GIF is the unsupported format). `test/global-setup.ts` runs `prisma migrate deploy` first.
-
-Run a single file with `pnpm test -- <path or pattern>` (same for `test:e2e`). Also run `pnpm lint`, `pnpm typecheck` and `pnpm build`; Jest doesn't type-check the whole project.
+- Unit specs beside the code (`*.spec.ts`), dependencies mocked through `Test.createTestingModule` providers.
+- E2E (`test/*.e2e-spec.ts`) boots the full `AppModule` over supertest and needs `pnpm db:up`. `test/setup-env.ts` sets the test database (`video_meetings_test`, or `TEST_DATABASE_URL`), `JWT_SECRET`, temp storage dirs and small size limits, so no `.env` is needed; `test/global-setup.ts` applies migrations. E2E doesn't run `main.ts`, so global pipes etc. go in `AppModule` (`APP_PIPE`).
+- A test that checks absolute URLs (`avatarUrl`) must listen on a real port, because the base comes from the request's `Host`. To test URL expiry, restart the app with a short `RECORDING_URL_TTL` (see `recording-playback.e2e-spec.ts`).
+- Fixtures in `test/fixtures/` are shared with the web e2e tests.
 
 ## Structure
 
-- `src/main.ts`: bootstrap, attaches `ObserveInstrument`, enables CORS for `WEB_ORIGIN`, raises the HTTP server's `requestTimeout` to 2 h so large uploads aren't cut off (e2e tests don't run `main.ts`). A reverse proxy in front needs a matching body size limit and timeouts.
-- `src/app.module.ts`: root module; registers global `ConfigModule`, `CqrsModule.forRoot()`, the global `ValidationPipe` (via `APP_PIPE`, so e2e tests get it too), and `@nestjs/observe` (`ObserveModule.forRoot`) for tracing/metrics. `appKey`/`appSecret` are still placeholders; move them to env vars before using real credentials, and never hardcode secrets.
-- `src/prisma/`: global `PrismaModule` exporting `PrismaService` (extends `PrismaClient`).
-- `src/common/`: helpers shared by feature modules, no providers: `CloseConnectionOnErrorFilter` (upload routes), `formatBytes` and `parsePublicUrl` (`API_PUBLIC_URL`).
-- `src/users/`: CQRS, owns user records (`User.name` is an optional display name, `User.avatarKey`/`avatarMimeType` the optional avatar file's storage key and MIME type, set and cleared together). `UsersModule` imports `AuthModule` for the guard and exports nothing; it is imported only by `AppModule`.
-  - For other modules (bus only): `CreateUserCommand` (`commands/create-user/`; duplicate email → `409`), `FindUserByEmailQuery` (`queries/find-user-by-email/`), `FindUserByIdQuery` (`queries/find-user-by-id/`) and `UpdatePasswordCommand` (`commands/update-password/`: replaces the hash only while the stored one is still the expected hash, else `409`).
-  - `ProfileController` (`profile.controller.ts`): routes under `users/me` behind `JwtAuthGuard`, acting only on `@CurrentUser()` (no user id in the URL, so nobody reaches another user's profile). No or invalid token → `401`; a token for a user that no longer exists → `404 User not found`.
-  - `GET /users/me` (`GetProfileQuery`, `queries/get-profile/`) → `ProfileResponse`.
-  - `PATCH /users/me` (`200`, `UpdateProfileCommand`, `commands/update-profile/`): body `{ name? }` (`UpdateProfileDto` in `dto/`). `name` is trimmed, then 1–100 characters sets it, `null` clears it, omitted keeps it; blank, empty, too long or not a string → `400` and the stored name is unchanged. Returns the updated `ProfileResponse`.
-  - `PUT /users/me/avatar` (`200`, `UploadAvatarCommand`, `commands/upload-avatar/`): multipart `file`, returns the updated `ProfileResponse`. Same pipeline as recording upload: `CloseConnectionOnErrorFilter`, `AvatarUploadInterceptor` (early `413` on `Content-Length`, "File is larger than …", temp file deleted on any error), multer (`MulterModule` in `users.module.ts`) to `AVATARS_DIR/incoming`, unknown extension → `415`, no file → `400`. The handler checks magic bytes with `file-type` (`avatar-file.ts`: JPG, PNG, WebP; the extension sets the stored `avatarMimeType`, the client's `Content-Type` is ignored), commits the file, then updates the row only if `avatarKey` is still the one it read, and deletes whichever file lost (the previous one on success, the new one on failure). A concurrent change → `409`.
-  - `DELETE /users/me/avatar` (`204`, `DeleteAvatarCommand`, `commands/delete-avatar/`): clears `avatarKey`/`avatarMimeType` (same compare-and-set, `409` on a concurrent change), then deletes the file; a failed removal is only logged. No avatar → `204` too.
-  - `ProfileResponse` (`profile-response.ts`): `id, email, name, avatarUrl`; the password hash and avatar key stay internal. `avatarUrl` is `null` without an avatar, else the absolute `<API_PUBLIC_URL or the request's protocol and Host>/avatars/<avatarKey>`: handlers return the path, `ProfileController` makes it absolute (`withAvatarBaseUrl`).
-  - `GET /avatars/:key` (`AvatarFilesController`, `ResolveAvatarQuery` in `queries/resolve-avatar/`): public, so `<img src>` works without a `Bearer` header; the key is a random UUID that changes with every upload, so the URL is unguessable and an old one (replaced or removed avatar), an unknown or non-UUID key → `404 Avatar not found`. Sent with `res.sendFile`, the stored MIME type, `X-Content-Type-Options: nosniff` and `Cache-Control: private, no-store`.
-  - `storage/`: `AvatarStorageService`, the same layout as `RecordingsStorageService` under `AVATARS_DIR` (`incoming/<uuid>`, then `<uuid>`; a new key on every commit). `AvatarStorageModule` also provides `avatarsConfig` (`avatars.config.ts`: dir, size limit, public URL).
-- `src/auth/`: CQRS (`@nestjs/cqrs`), credentials and tokens only. `POST /auth/register` (`201`) dispatches `RegisterUserCommand` (`commands/register-user/`), which hashes the password and sends `CreateUserCommand`; `POST /auth/login` (`200`) dispatches `LoginQuery` (`queries/login/`), which looks the user up with `FindUserByEmailQuery`. Both take `{ email, password }` and return `{ accessToken }` (JWT with `sub`, `email`, issued by `TokenService`). Emails are trimmed and lowercased; passwords hashed with scrypt (`PasswordService`); bad credentials → `401` with the same body for unknown email and wrong password.
-  - `POST /auth/change-password` (`204`, behind `JwtAuthGuard`): body `{ currentPassword, newPassword }` (`ChangePasswordDto`; `newPassword` min 8 as in `RegisterDto`, else `400`). `ChangePasswordCommand` (`commands/change-password/`) reads the user with `FindUserByIdQuery`, verifies the current password (wrong → `400 Current password is incorrect` with `field: 'currentPassword'` in the body, which the web matches instead of the text; not `401`, which the web treats as a lost session; user gone → `404`), and stores the new hash with `UpdatePasswordCommand` (the password changed meanwhile, e.g. a double submit → `409`). Issued tokens stay valid.
-  - `JwtAuthGuard` protects routes: verifies `Authorization: Bearer <jwt>` (else `401`) and sets `request.user`; read it with `@CurrentUser()` (`AuthUser` = `{ id, email }`). `AuthModule` exports the guard and `JwtModule`, so import `AuthModule` to use it.
-- `src/meetings/`: CQRS, all routes behind `JwtAuthGuard`. `POST /meetings` (`201`, `CreateMeetingCommand`) takes `{ title, date (ISO 8601), participants: email[] }` and makes the caller the owner. `GET /meetings` (`ListMeetingsQuery`) lists meetings the caller owns or is invited to (`meeting-access.ts`), sorted by date. `GET /meetings/:id` (`GetMeetingQuery`) returns one; unknown, non-UUID or not-visible ids → `404 Meeting not found`.
-- `src/tasks/`: CQRS, behind `JwtAuthGuard`. `PUT /tasks` (`200`, `UpsertTaskCommand`) takes `{ title, status: TODO | IN_PROGRESS | DONE }` (title trimmed, 1–200 chars, else `400`) and creates the caller's task or updates the status of the one with that title (unique per `ownerId` + `title`). `GET /tasks` (`ListOpenTasksQuery`) lists the caller's tasks that are not `DONE`; `GET /tasks/:id` (`GetTaskQuery`) returns one of the caller's tasks, any status; unknown, malformed or another user's id → `404 Task not found`. `TaskService` (`task.service.ts`, exported) is the one entry point for callers: `upsert`, `listOpen`, `get` (each takes the owner id) and `find(user, { query, from, to })` (the meetings visible to the user, filtered; what `find_tasks` returns). `TasksController` and `TaskTools` (the `/mcp` tools) both use it. `getAuthorized(requesterId, id)` (used by `task://{id}`) loads the task by id (`FindTaskByIdQuery`) and then checks `ownerId`: unknown or malformed id → `404`, another user's task → `403`; the id says what to read, not that the requester may see it. `upsert_task` takes the owner from the token only, never from its arguments.
-- `src/mcp/`: `McpModule`, an MCP endpoint at `/mcp` built by hand on `@modelcontextprotocol/sdk` v1 (Zod 4 for tool schemas). `McpController` (`@All()`, `passthrough: false`) hands every request to `McpService.handle`, which builds a fresh `McpServer` and a stateless `StreamableHTTPServerTransport` (`sessionIdGenerator: undefined`, `enableJsonResponse: true`) per request (the SDK's stateless transport refuses a second request) and fills the server from the registrars.
-  - Registry: domains own their tools. `McpRegistry` (`mcp-registry.ts`, in `McpRegistryModule`) collects `McpRegistrar`s (`register(server)`). A domain module imports `McpRegistryModule`, provides a registrar class and calls `registry.add(this)` in its `onModuleInit` (`TaskTools` in `src/tasks/task-tools.ts`: tools `find_tasks`, `upsert_task`, resources `tasks://open`, `task://{id}`, calling only `TaskService`). `McpService.onModuleInit` snapshots the registry. **To expose a new domain, import its module in `McpModule`**: Nest initializes imported modules first, so its registrar is in the registry before `McpService` reads it; `McpRegistryModule` is separate so the domain modules don't import `McpModule` (cycle).
-  - Auth: `McpController` is behind `McpAuthGuard` (`mcp-auth.guard.ts`), which verifies `Authorization: Bearer <jwt>` with `JwtService` like `JwtAuthGuard` (missing or invalid → `401`). It sets `req.requester = { userId }` and `req.auth` (`extra.user` = `AuthUser`), which the SDK forwards as `extra.authInfo`; tools and resources read the acting user with `mcpUser` (`mcp-user.ts`). `McpModule` imports `AuthModule` for `JwtService`. `test/mcp.e2e-spec.ts` (tools, resources, errors, `401`) uses real tokens; `test/mcp-registry.e2e-spec.ts` checks the registry wiring with a stand-in domain module (guard overridden).
-- `src/recordings/`: CQRS. `RecordingsController`: routes under `meetings/:id/recordings` behind `JwtAuthGuard`. `RecordingFilesController`: `recordings/:recordingId/stream|download`, authorized by a signed URL token instead.
-  - `POST` (`201`, `UploadRecordingCommand`): multipart `file` plus optional `durationSeconds` (finite, ≥ 0, else `400`, blank included; omitted → `null`). `MeetingOwnerGuard` runs before the body is read: not visible → `404`, invited but not owner → `403 Only the meeting owner can change recordings`. `CloseConnectionOnErrorFilter` sends `Connection: close` when the request is rejected before its body was read, so Node doesn't drain it. `RecordingUploadInterceptor` rejects a too-large `Content-Length`, renames multer's `413` to "File is larger than …", and deletes the temp file on any error. multer (`MulterModule` in `recordings.module.ts`) streams to `RECORDINGS_DIR/incoming`, decodes file names as UTF-8 and rejects unknown extensions with `415`. The handler checks magic bytes with `file-type` (`recording-file.ts`: allow-list MP4, WebM, MP3, M4A, WAV; the extension sets the stored MIME type and `kind`, the client's `Content-Type` is ignored), commits the file, then creates the row (a meeting deleted mid-upload → `404`, and the file is removed).
-  - `GET` (`ListRecordingsQuery`): owner and invited participants (access via `GetMeetingQuery` on the bus, else `404`), newest first.
-  - `GET :recordingId/urls` (`GetRecordingUrlsQuery`): owner and invited → `{ streamUrl, downloadUrl, expiresAt }`, absolute URLs with a `token` query param. Not visible → `404 Meeting not found`; unknown, non-UUID or another meeting's recording → `404 Recording not found`.
-  - `DELETE :recordingId` (`204`, `DeleteRecordingCommand`): owner only (`MeetingOwnerGuard`, as for upload). Deletes the row, then the file; a failed file removal is only logged. Unknown recording → `404 Recording not found`.
-  - `GET /recordings/:recordingId/stream?token=` and `/download?token=` (`ResolveSignedRecordingQuery`): the token is checked before the file is touched, so a missing, expired, tampered, wrong-purpose or deleted recording's token → `404 Recording not found`, Range requests included. Sent with Express `res.sendFile` / `res.download` (Range → `206`, `416`, ETag), the stored MIME type, `X-Content-Type-Options: nosniff` and `Cache-Control: private, no-store`; download adds `Content-Disposition: attachment` with `filename*` for non-ASCII names. No CORS needed: `<video src>` and link navigation aren't CORS requests.
-  - `RecordingUrlSigner` (`recording-url-signer.ts`): token = base64url(`<recordingId>.<stream|download>.<exp>`) + `.` + HMAC-SHA256, key derived from `JWT_SECRET` with HKDF (`recording-urls`), so URL and access tokens are never interchangeable. Tokens in query strings end up in access logs; don't log full URLs.
-  - Responses are `RecordingResponse` (`recording-response.ts`): `id, meetingId, originalName, mimeType, kind, sizeBytes, durationSeconds, createdAt, uploaderEmail`; the storage key stays internal.
-  - `storage/`: `RecordingsStorageService` owns the file layout (`incoming/<uuid>` while uploading, `<uuid>` once committed by rename; `pathFor` accepts only UUID keys) and empties `incoming/` on startup. `RecordingsStorageModule` also provides `recordingsConfig` (`recordings.config.ts`: dir, size limit, URL TTL, public URL).
-- `src/generated/prisma/`: generated Prisma client (gitignored, don't edit). Import from `../generated/prisma/client`.
-- `prisma/schema.prisma`, `prisma/migrations/`, `prisma.config.ts`: schema, migrations (committed), CLI config.
-- Generate new features with the Nest CLI (`pnpm nest g module|controller|service <name>`) so each feature gets its own module folder under `src/`.
+- `src/app.module.ts`: root module (global `ConfigModule`, `CqrsModule`, `ValidationPipe`, `@nestjs/observe`). Its `appKey`/`appSecret` are placeholders; move them to env vars before using real credentials.
+- `src/prisma/`: global `PrismaService`. Generated client in `src/generated/prisma/` (gitignored), import from `../generated/prisma/client`.
+- `src/common/`: provider-free helpers (`CloseConnectionOnErrorFilter`, `formatBytes`, `parsePublicUrl`).
+- `src/auth/`: register, login, change password, JWT (scrypt hashes). Exports `JwtAuthGuard` + `@CurrentUser()`. Emails are trimmed and lowercased; unknown email and wrong password return the same `401`. A wrong current password is `400` with `field: 'currentPassword'`, not `401` (the web treats `401` as a lost session). Issued tokens stay valid after a password change.
+- `src/users/`: user records and the `users/me` profile (name, avatar). Other modules use it only via the bus (`CreateUserCommand`, `FindUserBy*Query`, `UpdatePasswordCommand`). `GET /avatars/:key` is public; the key is a new random UUID per upload.
+- `src/meetings/`: meetings the caller owns or is invited to (`meeting-access.ts`); not visible → `404`.
+- `src/recordings/`: upload, list, delete (owner only, `MeetingOwnerGuard`, runs before the body is read) and stream/download through signed URLs (`RecordingUrlSigner`, HMAC key derived from `JWT_SECRET` via HKDF, so URL and access tokens are never interchangeable). Tokens are in query strings: never log full URLs. Any invalid token → `404`, never a hint why. `<video src>` and downloads aren't CORS requests. Before changing recordings, read `docs/research-meeting-upload.md` (the code wins where they differ).
+- Uploads (recordings and avatars) share one pipeline: `CloseConnectionOnErrorFilter`, early `413` interceptor, multer to `<dir>/incoming`, magic-byte check with `file-type` (client `Content-Type` ignored), commit by rename via the `storage/` service (UUID keys only; `incoming/` is emptied on startup), compare-and-set on the row (`409` on a concurrent change). The temp file is deleted on any error; a failed removal of an old file is only logged.
+- Files are served with the stored MIME type, `X-Content-Type-Options: nosniff` and `Cache-Control: private, no-store`.
+- `prisma/schema.prisma`, `prisma/migrations/` (committed), `prisma.config.ts`.
 
 ## Conventions
 
-- TypeScript: `module`/`moduleResolution` = `nodenext`, strict, decorators + `emitDecoratorMetadata` enabled, `strictPropertyInitialization` off.
-- ESLint uses `recommendedTypeChecked`; `no-floating-promises` is an error, so `await` or `void` every promise.
-- Use constructor injection with providers; keep controllers thin and put logic in services.
-- Feature modules use CQRS: controllers only build a command (state change) or query (read) and send it through `CommandBus`/`QueryBus`. Each lives in `commands/<name>/` or `queries/<name>/` as `<name>.command.ts`/`<name>.query.ts` (extends `Command<Result>`/`Query<Result>` for typed results) plus `<name>.handler.ts`; register handlers in the module's `providers`.
-- Modules talk to each other through the buses, not by importing each other's services: dispatch the other module's command/query class (e.g. `auth` → `CreateUserCommand`). Only `AuthModule` is imported directly, for `JwtAuthGuard`.
-- Put unit specs beside the code (`foo.service.spec.ts`) and e2e specs in `test/*.e2e-spec.ts`.
-- Before changing recordings, read `docs/research-meeting-upload.md` (why each library and technique was chosen; the code above is the source of truth where they differ).
+- TS `nodenext`, decorators + `emitDecoratorMetadata`, `strictPropertyInitialization` off. ESLint `recommendedTypeChecked`: `await` or `void` every promise.
+- New features via the Nest CLI (`pnpm nest g module|controller|service <name>`), one module folder per feature under `src/`.
+- Constructor injection with providers; keep controllers thin.
+- CQRS: controllers only dispatch a command or query through the bus. Files in `commands/<name>/` or `queries/<name>/` as `<name>.command.ts`/`<name>.query.ts` (extends `Command<Result>`/`Query<Result>`) + `<name>.handler.ts`; register handlers in the module's `providers`.
+- Modules talk through the buses, not each other's services. Only `AuthModule` is imported directly, for `JwtAuthGuard`.
+- Response DTOs (`*-response.ts`) never expose password hashes or storage keys.
