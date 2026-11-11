@@ -4,8 +4,10 @@ import { APP_PIPE } from '@nestjs/core';
 import { CqrsModule } from '@nestjs/cqrs';
 import { createObserveModule } from '@nestjs/observe';
 import { AuthModule } from './auth/auth.module';
+import { McpModule } from './mcp/mcp.module';
 import { MeetingsModule } from './meetings/meetings.module';
 import { PrismaModule } from './prisma/prisma.module';
+import { TasksModule } from './tasks/tasks.module';
 import { UsersModule } from './users/users.module';
 import { RecordingsModule } from './recordings/recordings.module';
 
@@ -27,6 +29,8 @@ export const { ObserveModule, ObserveInstrument } = createObserveModule();
     AuthModule,
     MeetingsModule,
     RecordingsModule,
+    TasksModule,
+    McpModule,
   ],
   providers: [
     // Registered here rather than in main.ts so e2e tests get validation too.
